@@ -1,0 +1,208 @@
+---
+title: "MUSA508_HW2_BOULDER"
+author: "Alexander Nelms"
+date: "10/9/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(RColorBrewer)
+library(patchwork)
+library(scales)
+library(kableExtra)
+
+library(tidycensus)
+library(sf)
+library(sp)
+library(tmap)
+library(ggrepel)
+library(tigris)
+
+
+mapTheme <- function(base_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = 16,colour = "black"),
+    plot.subtitle=element_text(face="italic"),
+    plot.caption=element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill=NA, size=2),
+    strip.text.x = element_text(size = 14))
+}
+
+plotTheme <- function(base_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = 16,colour = "black"),
+    plot.subtitle = element_text(face="italic"),
+    plot.caption = element_text(hjust=0),
+    axis.ticks = element_blank(),
+    
+    panel.background = element_blank(),
+    panel.grid.major = element_line("grey80", size = 0.1),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill=NA, size=2),
+    strip.background = element_rect(fill = "grey80", color = "white"),
+    strip.text = element_text(size=12),
+    
+    axis.title = element_text(size=12),
+    axis.text = element_text(size=10),
+    
+    
+    plot.background = element_blank(),
+    
+    legend.background = element_blank(),
+    legend.title = element_text(colour = "black", face = "italic"),
+    legend.text = element_text(colour = "black", face = "italic"),
+    
+    strip.text.x = element_text(size = 14)
+  )
+}
+
+
+plot_limits = function(
+  poly.geometry = '',
+  # buffer between plot's limits and the geometry 
+  # (in unit of geometry column)
+  buffer = 0
+){
+  # creates bounding box
+  poly.bbox =
+    poly.geometry %>% st_union() %>%
+    # buffers the geometry so the ultimate plot has margins
+    st_buffer(buffer) %>%
+    st_bbox()
+  return(
+    # returns the 'coord_sf' function which you can add to any plot
+    coord_sf(
+      xlim = c(poly.bbox['xmin'], poly.bbox['xmax']),
+      ylim = c(poly.bbox['ymin'], poly.bbox['ymax']),
+      crs = st_crs(poly.geometry)
+  ))}
+
+```
+
+# Import Data
+
+```{r import}
+
+col_crs = st_crs('ESRI:102653')
+
+parcel_path = 
+  "C:/Users/nelms/Documents/Code/Data/Boulder_Parcels_20211009.geojson" 
+B.par = st_read(parcel_path) %>%
+  rename(ID = OBJECTID, APN=PARCEL_NO) %>%
+  select(ID,APN) %>% 
+  st_transform(., col_crs) %>% # North Col State Plane Feet
+  mutate(
+    geometry = st_make_valid(geometry), 
+    area = st_area(geometry)) 
+attributes(B.par$area) = NULL
+B.par = B.par %>% filter(area>0)
+
+
+studentData_path =
+  "C:/Users/nelms/Documents/Code/Data/studentData.geojson"
+B.sales =
+  st_read(studentData_path) %>% 
+  st_set_crs('ESRI:102254') %>% 
+  st_transform(., col_crs) 
+
+ggplot() + geom_sf(data=B.sales)
+
+address_path = 
+  "C:/Users/nelms/Documents/Code/Data/Boulder_AddressPts_20211009.geojson"
+B.add = st_read(address_path)%>% 
+  st_transform(., col_crs)
+
+acct_path = 
+  "C:/Users/nelms/Documents/Code/Data/Account_Parcels.csv"
+B.acct = read.csv(acct_path) 
+
+build_path = 
+  "C:/Users/nelms/Documents/Code/Data/Buildings.csv"
+B.build = read.csv(build_path) 
+
+land_path = 
+  "C:/Users/nelms/Documents/Code/Data/Land.csv"
+B.land = read.csv(land_path) 
+
+owner_path = 
+  "C:/Users/nelms/Documents/Code/Data/Owner_Address.csv"
+B.owner = read.csv(owner_path) 
+
+# permits = 
+#   "C:/Users/nelms/Documents/Code/Data/Permits.csv"
+# B.build = read.csv(build_path) 
+```
+
+# Parcel Joins
+
+
+```{r parcel}
+
+glimpse(B.par)
+
+```
+
+# Parcel Clean
+
+```{r parcel_clean}
+
+OG_len = nrow(B.par%>% st_drop_geometry())
+APN_len = nrow(B.par %>% st_drop_geometry() %>% distinct(., APN))
+ID_len = nrow(B.par %>% st_drop_geometry() %>% distinct(., ID, APN))
+area_len = nrow(B.par[B.par$area>0,] %>% st_drop_geometry() )
+
+print(OG_len)
+print(OG_len-APN_len)
+print(OG_len-ID_len)
+print(OG_len-area_len)
+
+B.par[(B.par$area<=0)&(B.par$APN %in% dupe_APN),]
+
+n_occur = 
+  data.frame(table(B.par$APN)) %>% 
+  rename(APN=Var1) %>% arrange(-Freq)
+
+dupe_APN = n_occur[n_occur$Freq > 1,"APN"]
+B.dupe = 
+  B.par[B.par$APN %in% dupe_APN,] %>% group_by(APN) %>%
+  summarize(geometry = st_union(geometry))
+
+B.par[(B.par$APN == "157505036006")&
+        (st_area(B.par$geometry)>0),]
+
+
+
+ggplot() + 
+  geom_sf(data=B.par, lwd=.1) + 
+  geom_sf(data=B.dupe, 
+          fill='pink', color='red') + 
+  plot_limits(poly.geometry= B.dupe)
+```
+
+
+# Set Up Regression
+
+You can also embed plots, for example:
+
+```{r set_up}
+
+```
+
+# Regression Results
+
+
+```{r results}
+
+```
