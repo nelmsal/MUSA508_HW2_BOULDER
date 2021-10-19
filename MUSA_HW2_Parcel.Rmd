@@ -1,9 +1,18 @@
 ---
-title: "MUSA508_HW2_BOULDER"
-author: "Alexander Nelms"
-date: "10/9/2021"
-output: html_document
+title: "Assignment 2: Boulder County House Prices Algorithm"
+author: "Alex Nelms"
+date: "10/22/2021"
+output: 
+  bookdown::html_document2: 
+    code_folding: hide
+    fig_caption: yes
+    toc: yes
+editor_options: 
+  markdown: 
+    wrap: sentence
+  chunk_output_type: console
 ---
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -192,17 +201,145 @@ ggplot() +
 ```
 
 
+
+#Data 
+
+Discuss briefly methods for gathering the data
+
 # Set Up Regression
 
-You can also embed plots, for example:
+Table of summary Statistics 
 
-```{r set_up}
+```{r summary statistics}
+
+
+
+
+
 
 ```
 
-# Regression Results
+
+#Correlation matrix to assess multicollinearity
+
+```{r correlation matrix}
+
+numericVars <- 
+  select_if(st_drop_geometry(.....), is.numeric) %>% na.omit()
+
+ggcorrplot(
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#25CB10", "white", "#FA7800"),
+  type="lower",
+  insig = "blank") +  
+    labs(title = "Correlation across numeric variables") 
+
+```
 
 
-```{r results}
+Plot histograms to assess Normalcy of Data. We don't need to add this in the report, but can be part of data wrangling or feature analysis. ANy that don't appear normal, look at the log transformed 
+```{r histograms}
 
+hist(variables, breaks=50)
+hist(variables, breaks=50)
+.
+.
+.
+hist(variables, breaks=50)
+
+
+
+
+```
+
+```{r log transformed}
+
+dataset$variable <- log(var)
+.
+.
+.
+
+dataset$variable <- Log(1+var)) --> #needed if there are any zeros in the dataset
+```
+
+```{r histograms of log transformed}
+
+hist(lnvariables, breaks=50)
+hist(lnvariables, breaks=50)
+.
+.
+.
+hist(lnvariables, breaks=50)
+
+#if any variables still do not appear normal after log transform, then we will have to deicde if keeping them in or not. Obviously improtant variables (such as dependnet variable house prices) will need to be kep in
+
+
+```
+
+
+Scatterplots of home price correlation that are of interest. Looking at interesting open data that we've intergrated
+```{r scatterplots}
+plot(dataset$dependentvariable, dataset$independentvariable)
+plot(dataset$dependentvariable, dataset$independentvariable)
+plot(dataset$dependentvariable, dataset$independentvariable)
+plot(dataset$dependentvariable, dataset$independentvariable)
+
+```
+
+Map of Dependent Variable - Housing Prices 
+
+```{r map of dependent variable}
+
+ggplot() +
+  geom_sf(data = --dataset--, fill = "grey40") +
+  geom_sf(data = --boulder--.sf, aes(colour = q5(----)), 
+          show.legend = "point", size = .75) +
+  scale_colour_manual(values = palette5,
+                   labels=qBr(----,"----"),
+                   name="Quintile\nBreaks") +
+  labs(title="-------, Boulder County") +
+  mapTheme()
+
+# 3 maps
+
+
+```
+
+
+
+# Setting up Test and Train datasets
+
+
+```{r test and train datasets}
+
+
+inTrain <- createDataPartition(
+              y = paste(dataset.sf$Name, dataset.sf$NUM_FLOORS.cat, 
+                        dataset.sf$Style, dataset.sf$R_AC), 
+              p = .75, list = FALSE)
+
+
+set.seed(111) #in order to make sure the randomness of the 75/25 split stay the same
+boston.training <- dataset.sf[inTrain,] 
+boston.test <- dataset.sf[-inTrain,]  
+ 
+```
+
+Run Regression
+
+
+```{r test and train datasets}
+
+
+inTrain <- createDataPartition(
+              y = paste(dataset.sf$Name, dataset.sf$NUM_FLOORS.cat, 
+                        dataset.sf$Style, dataset.sf$R_AC), 
+              p = .75, list = FALSE)
+
+
+set.seed(111) #in order to make sure the randomness of the 75/25 split stay the same
+boston.training <- dataset.sf[inTrain,] 
+boston.test <- dataset.sf[-inTrain,]  
+ 
 ```
