@@ -1,0 +1,728 @@
+---
+title: "Assignment 2: Boulder County House Prices Algorithm"
+author: "Alex Nelms and Gianluca Mangiapane"
+date: "10/22/2021"
+output: 
+  bookdown::html_document2: 
+    code_folding: hide
+    fig_caption: yes
+    toc: yes
+editor_options: 
+  markdown: 
+    wrap: sentence
+  chunk_output_type: console
+---
+# 0. Introduction 
+
+
+Boulder County - population growing, Zillow wants us adjust their pricing algorithm to reflect now growing demand for houses.  
+
+WHat are some aspects of Boulder County
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(RColorBrewer)
+library(patchwork)
+library(scales)
+library(kableExtra)
+
+library(tidycensus)
+library(sf)
+library(sp)
+library(tmap)
+#library(ggrepel)
+library(tigris)
+
+
+mapTheme <- function(base_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = 16,colour = "black"),
+    plot.subtitle=element_text(face="italic"),
+    plot.caption=element_text(hjust=0),
+    axis.ticks = element_blank(),
+    panel.background = element_blank(),axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill=NA, size=2),
+    strip.text.x = element_text(size = 14))
+}
+
+plotTheme <- function(base_size = 12) {
+  theme(
+    text = element_text( color = "black"),
+    plot.title = element_text(size = 16,colour = "black"),
+    plot.subtitle = element_text(face="italic"),
+    plot.caption = element_text(hjust=0),
+    axis.ticks = element_blank(),
+    
+    panel.background = element_blank(),
+    panel.grid.major = element_line("grey80", size = 0.1),
+    panel.grid.minor = element_blank(),
+    panel.border = element_rect(colour = "black", fill=NA, size=2),
+    strip.background = element_rect(fill = "grey80", color = "white"),
+    strip.text = element_text(size=12),
+    
+    axis.title = element_text(size=12),
+    axis.text = element_text(size=10),
+    
+    
+    plot.background = element_blank(),
+    
+    legend.background = element_blank(),
+    legend.title = element_text(colour = "black", face = "italic"),
+    legend.text = element_text(colour = "black", face = "italic"),
+    
+    strip.text.x = element_text(size = 14)
+  )
+}
+
+
+plot_limits = function(
+  poly.geometry = '',
+  # buffer between plot's limits and the geometry 
+  # (in unit of geometry column)
+  buffer = 0
+){
+  # creates bounding box
+  poly.bbox =
+    poly.geometry %>% st_union() %>%
+    # buffers the geometry so the ultimate plot has margins
+    st_buffer(buffer) %>%
+    st_bbox()
+  return(
+    # returns the 'coord_sf' function which you can add to any plot
+    coord_sf(
+      xlim = c(poly.bbox['xmin'], poly.bbox['xmax']),
+      ylim = c(poly.bbox['ymin'], poly.bbox['ymax']),
+      crs = st_crs(poly.geometry)
+  ))}
+
+```
+
+
+# 1. Data
+
+
+
+
+
+
+
+## 1.1 Import Data
+Import Data
+
+Sales Data
+
+```{r import}
+
+col_crs = st_crs('ESRI:102653')
+
+parcel_path = 
+  "data/Boulder_Parcels_20211009.geojson" 
+B.par = st_read(parcel_path) %>%
+  rename(ID = OBJECTID, APN=PARCEL_NO) %>%
+  select(ID,APN) %>% 
+  st_transform(., col_crs) %>% # North Col State Plane Feet
+  mutate(
+    geometry = st_make_valid(geometry), 
+    area = st_area(geometry)) 
+attributes(B.par$area) = NULL
+B.par = B.par %>% filter(area>0)
+
+
+studentData_path =
+  "data/studentData.geojson"
+B.sales =
+  st_read(studentData_path) %>% 
+  st_set_crs('ESRI:102254') %>% 
+  st_transform(., col_crs) 
+
+ggplot() + geom_sf(data=B.sales)
+
+address_path = 
+  "C:/Users/nelms/Documents/Code/Data/Boulder_AddressPts_20211009.geojson"
+B.add = st_read(address_path)%>% 
+  st_transform(., col_crs)
+
+acct_path = 
+  "C:/Users/nelms/Documents/Code/Data/Account_Parcels.csv"
+B.acct = read.csv(acct_path) 
+
+build_path = 
+  "C:/Users/nelms/Documents/Code/Data/Buildings.csv"
+B.build = read.csv(build_path) 
+
+land_path = 
+  "C:/Users/nelms/Documents/Code/Data/Land.csv"
+B.land = read.csv(land_path) 
+
+owner_path = 
+  "C:/Users/nelms/Documents/Code/Data/Owner_Address.csv"
+B.owner = read.csv(owner_path) 
+
+# permits = 
+#   "C:/Users/nelms/Documents/Code/Data/Permits.csv"
+# B.build = read.csv(build_path) 
+```
+
+## Parcel Joins
+
+
+```{r parcel}
+
+glimpse(B.par)
+
+```
+
+## Parcel Clean
+
+```{r parcel_clean}
+
+OG_len = nrow(B.par%>% st_drop_geometry())
+APN_len = nrow(B.par %>% st_drop_geometry() %>% distinct(., APN))
+ID_len = nrow(B.par %>% st_drop_geometry() %>% distinct(., ID, APN))
+area_len = nrow(B.par[B.par$area>0,] %>% st_drop_geometry() )
+
+print(OG_len)
+print(OG_len-APN_len)
+print(OG_len-ID_len)
+print(OG_len-area_len)
+
+B.par[(B.par$area<=0)&(B.par$APN %in% dupe_APN),]
+
+n_occur = 
+  data.frame(table(B.par$APN)) %>% 
+  rename(APN=Var1) %>% arrange(-Freq)
+
+dupe_APN = n_occur[n_occur$Freq > 1,"APN"]
+B.dupe = 
+  B.par[B.par$APN %in% dupe_APN,] %>% group_by(APN) %>%
+  summarize(geometry = st_union(geometry))
+
+B.par[(B.par$APN == "157505036006")&
+        (st_area(B.par$geometry)>0),]
+
+
+
+ggplot() + 
+  geom_sf(data=B.par, lwd=.1) + 
+  geom_sf(data=B.dupe, 
+          fill='pink', color='red') + 
+  plot_limits(poly.geometry= B.dupe)
+```
+
+
+.....
+
+
+Discuss briefly methods for gathering the data
+
+
+
+
+(this doesnt need to be in the report, but a method of filterign and transforming unon normal ly distributed data)
+
+Plot histograms to assess Normalcy of Data. We don't need to add this in the report, but can be part of data wrangling or feature analysis. ANy that don't appear normal, look at the log transformed 
+```{r histograms}
+
+hist(variables, breaks=50)
+hist(variables, breaks=50)
+.
+.
+.
+hist(variables, breaks=50)
+
+
+
+
+```
+
+```{r log transformed}
+
+dataset$variable <- log(var)
+.
+.
+.
+
+dataset$variable <- Log(1+var)) --> #needed if there are any zeros in the dataset
+```
+
+```{r histograms of log transformed}
+
+hist(lnvariables, breaks=50)
+hist(lnvariables, breaks=50)
+.
+.
+.
+hist(lnvariables, breaks=50)
+#if any variables still do not appear normal after log transform, then we will have to deicde if keeping them in or not. Obviously improtant variables (such as dependnet variable ho
+
+```
+
+
+Set Up Regression
+
+Split up the data between sales prices known, and the sales prices that are set to 0 to be predicted 
+
+```{r data partition}
+
+HousesPresent <- b.sales %>%
+  filter(.,toPredict ==0)
+HousesFuture <- b.sales %>%
+  filter(., toPredict ==1)
+
+```
+
+
+Table of summary Statistics
+
+```{r summary statistics}
+
+b.salesSum <- b.sales %>%
+  dplyr:: select(VARIABLES LIST)
+
+b.salesSum <- st_drop_geomatry(B.salesSum)
+stargazer(as.data.frame(b.salesSum), type="text", digits=1, title="Table1: Summary Statistics for Boulder COunty Housing", out = 'Boulder Data.txt")
+
+
+```
+
+
+#Correlation matrix to assess multicollinearity
+
+see which variables have positive correlation, which variables have negative correlation, and which ones are correlated above 0.8 or negative 0.8, and if that happens, only choose one
+
+```{r correlation matrix}
+
+corrPlotVariables <- b.sales %>%
+  dplyr::select(VARIABLES LIST)
+
+
+numericVars <- 
+  select_if(st_drop_geometry(corrPlotVariables), is.numeric) %>% na.omit()
+
+ggcorrplot(
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#25CB10", "white", "#FA7800"),
+  type="lower",
+  insig = "blank") +  
+    labs(title = "Figure 1: Boulder Housing Correlation across Numeric Variables") 
+
+```
+
+
+Scatterplots of home price correlation that are of interest. Looking at interesting open data that we've integrated
+```{r scatterplots}
+
+
+#1 variable 
+
+ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+  geom_point(size=2, shape=20)  +
+  labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
+  geom_smooth(method = "lm", se=F, colour = "blue") +
+  plotTheme()
+
+
+#2 variable 
+
+ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+  geom_point(size=2, shape=20)  +
+  labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
+  geom_smooth(method = "lm", se=F, colour = "green") +
+  plotTheme()
+
+#3 variable 
+
+ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+  geom_point(size=2, shape=20)  +
+  labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
+  geom_smooth(method = "lm", se=F, colour = "red") +
+  plotTheme()
+
+#4 variable 
+
+ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+  geom_point(size=2, shape=20)  +
+  labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
+  geom_smooth(method = "lm", se=F, colour = "orange") +
+  plotTheme()
+
+```
+
+Map of Dependent Variable - Housing Prices 
+
+```{r map of dependent variable}
+
+#maybe we can insert faded base map of boulder county?
+
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(SalePrice))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+
+```
+
+
+Map of independent Variables - XXXX, XXXX, XXXX, XXXX
+
+```{r map of independent variable}
+
+#maybe we can insert faded base map of boulder county?
+
+#variable 1
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(XXXXXX))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+#variable 2
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(XXXXX))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+#variable 3
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(XXXX))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+#variable 4
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(XXXXX))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+
+```
+
+
+# 2.0 Methods
+
+##2.1 Run the Regression
+
+```{r run the regression}
+
+fit <- lm(SalePrice ~ ., data = st_drop_geometry(HousesPresent) %>%
+             dplyr::select(SalePrice...........VARIABLES))
+```
+
+
+##2.2Setting up Test and Train datasets
+
+
+```{r test and train datasets}
+
+#need to create a type of neighborhoods data set i believe, and join it into our pricesKnown data set. 
+
+#need the geometries in order to do the Moran's I test later, and to plot the points 
+
+#need to paste in the variable columns that balances factors for categories acorss the trainign and test sets 
+
+inTrain <- createDataPartition(
+              y = paste(HousesPresent$XXXX, HousesPresent$XXXX....), 
+              p = .75, list = FALSE)
+
+boulder.training <- HousesPresent[inTrain,] 
+boulder.test <- HousesPresent[-inTrain,]  
+ 
+```
+
+
+##2.3 Training Regression
+```{r regression training}
+
+fit.training <- lm(salePrice~., data = st_drop_geometry(boulder.training)  %>% 
+                             dplyr::select(SalePrice, XXXXXX))
+```
+
+#3.0 Results
+
+##3.1 Summary Table 
+```{r regression table}
+
+stargazer(fit.training, type="text", digits=1, title="Table 2: Boulder Trainign Data Regression Output", out = "Training LM.txt")
+
+```
+
+
+
+##3.2 Test Regression and plot the results
+```{r regression testing}
+
+boulder.test <-
+  boulder.test %>%
+  mutate(Regression = "Baseline Regression",
+         SalePrice.Predict = predict(fit.training, boulder.test), 
+         SalePrice.Error = SalePrice.Predict - SalePrice, 
+         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice), 
+         SalePrice.APE = SalePrice.AbsError / SalePrice) %>%   
+  filter(SalePrice < 5000000) 
+
+#Mean Error and APE 
+
+mean(boulder.test$SalePrice.AbsError, na.rm = T)#[1] 351280.6
+mean(boulder.test$SalePrice.APE, na.rm = T)#[1] 0.7101703
+mean(boulder.test$SalePrice.Predict, na.rm = T)
+
+
+ggplot(data = boulder.test) +
+  geom_point(aes(x = SalePrice, y = SalePrice.AbsError)) +
+  labs(title = "Figure XX Observed Sale Price and Absolute Error") +
+  plotTheme()
+
+ggplot(data = boulder.test) +
+  geom_point(aes(x = SalePrice, y = SalePrice.APE)) +
+  labs(title = "Figure XX: Observed Sale Price with Absolute Percent Error") +
+  plotTheme()
+
+
+```
+
+Testing for generalization 
+Comparing mean average error of K-fold output with our model above that we trained 
+
+
+##2.3 K-Fold Test 
+```{r k-fold cross-validation}
+
+fitControl <- trainControl(method = "cv", number = 100)
+set.seed(825)
+
+
+fit.cv <- 
+  train(SalePrice ~ ., data = st_drop_geometry(HousesPresent) %>% 
+                                dplyr::select(SalePrice, XXXXXXXXX), 
+     method = "lm", trControl = fitControl, na.action = na.pass)
+
+```
+
+
+```{r MAP of test set residuals}
+
+
+boulder.test$resid <- 
+  boulder.test %>%
+  as_data_frame() %>%
+  add_residuals(., fit.training, var = "resid") %>%
+  dplyr::select(resid, Folio) %>%
+  pull(resid)
+
+
+ggplot() +
+geom_sf(data = XXXX, fill = "gray90", colour = "XXX") +
+    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXX") +
+  geom_sf(data = boulder.test, aes(colour = q5(resid))) +
+  scale_colour_manual(values = palette5) +
+ labs(title = "Figure XXX: Test Set Residual Errors", subtitle = "XXXXX") +
+  mapTheme()
+
+
+```
+
+
+Spatial Lag in Errors 
+
+```{r Spatial Lag}
+library(knitr)
+library(kableExtra)
+library(scales)
+
+coords <- st_coordinates(HousesPresent)
+neighborhoods <- knn2nb(knearneigh(coords, 5)) #the 5 nearest neighborhoods
+
+spatialWeights <- nb2listw(neighborhoods, style="W") 
+HousesPresent$lagPrice <- lag.listw(spatialWeights, HousesPresent$SalePrice)
+
+coordinates.test <-  st_coordinates(boulder.test)
+neighborList.test <- knn2nb(knearneigh(coordinates.test, 5))
+spatialWeights.test <- nb2listw(neighborhoods.test, style="W")
+
+```
+
+
+```{r Plotting of Spatial Lag }
+
+
+boulder.test %>%                
+  mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)) %>%  
+  ggplot(aes(lagPriceError, SalePrice)) +
+  geom_point() +
+  stat_smooth(aes(lagPriceError, SalePrice), 
+             method = "lm", se = FALSE, size = 1, colour="#FA7800")+
+  labs(title = "Figure XXX: Spatial Lag of Price Errors") +
+  plotTheme() + theme(plot.title = element_text(size = 18, colour = "XXXX")) 
+```
+
+
+```{r Morans I}
+
+BouldermoranTest <- moran.mc(boulder.test$SalePrice.Error,
+                      spatialWeights.test, nsim = 999)
+
+
+ggplot(as.data.frame(BouldermoranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
+  geom_histogram(binwidth = 0.01) +
+  geom_vline(aes(xintercept = BouldermoranTest$statistic), colour = "#FA7800",size=1) +
+  scale_x_continuous(limits = c(-1, 1)) +
+  labs(title="Figure XX: Observed and Permuted Moran's I",
+       subtitle= "Observed Moran's I in orange",
+       x="Moran's I",
+       y="Count") +
+  plotTheme()
+
+
+```
+
+##Accounting for neighborhood variance 
+
+```{r Neighborhood variance into the Regression}
+
+#Make regression model 
+
+reg.neighborhood <- lm(SalePrice ~ ., data = as.data.frame(boulder.training) %>% 
+                                 dplyr::select(XXXX_neighborhood name, SalePrice, XXXXXXXXXXxx))
+#Outcomes
+boulder.test.neighborhood <-
+  boulder.test %>%
+  mutate(Regression = "Neighborhood Effects",
+         SalePrice.Predict = predict(reg.neighborhood, boulder.test), 
+         SalePrice.Error = SalePrice - SalePrice.Predict,       
+         SalePrice.AbsError = abs(SalePrice - SalePrice.Predict), 
+         SalePrice.APE = (abs(SalePrice - SalePrice.Predict)) / SalePrice)%>% 
+  filter(SalePrice < 5000000)
+
+
+#accuracy
+
+bothRegressions <-
+  rbind(
+    dplyr::select(boulder.test, starts_with("SalePrice"), Regression, neighborhood) %>%
+      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)),
+    dplyr::select(boulder.test.nhood, starts_with("SalePrice"), Regression, XXXX_Neighborhood Name) %>%
+      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)))   
+
+
+st_drop_geometry(bothRegressions) %>%
+  gather(Variable, Value, -Regression, -neighborhood) %>%
+  filter(Variable == "SalePrice.AbsError" | Variable == "SalePrice.APE") %>%
+  group_by(Regression, Variable) %>%
+    summarize(meanValue = mean(Value, na.rm = T)) %>%
+    spread(Variable, meanValue) %>%
+    kable(caption = "Table XX: Neighborhood Effect on Error")
+
+
+```
+
+```{r Plotting the predicted prices from the new neighborhood variance regression }
+
+bothRegressions %>%
+  dplyr::select(SalePrice.Predict, SalePrice, Regression) %>%
+    ggplot(aes(SalePrice, SalePrice.Predict)) +
+  geom_point() +
+  stat_smooth(aes(SalePrice, SalePrice),
+             method = "lm", se = FALSE, size = 1, colour="#FA7800") +
+  stat_smooth(aes(SalePrice.Predict, SalePrice),
+              method = "lm", se = FALSE, size = 1, colour="#25CB10") +
+  facet_wrap(~Regression) +
+  labs(title="Figure 10.1: Predicted Sale Price and Observed Price",
+       subtitle="Orange line represents a perfect prediction; Green line represents prediction") +
+  plotTheme() + theme(plot.title = element_text(size = 18, colour = "black"))
+
+```
+
+
+```{r map of predicted values}
+
+housespredicted <- b.sales %>%
+  mutate(prediction = predict(reg.neighborhood, b.sales))
+
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray90", colour = "white") +
+    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXXX") +
+  geom_sf(data = housespredicted, aes(colour = q5(prediction))) +
+ scale_colour_manual(values = palette5) +
+ labs(title = "Figure XXX: Predicted House Price Values", subtitle = "Boulder County, CO") +
+ # facet_wrap(~toPredict) +
+  mapTheme()
+
+```
+
+
+```{r Test Set Predictions, MAPE of neighborhoods}
+
+names(bothRegressions)[names(bothRegressions) == "OUR NEGHBORHOOD NAME"] <- "Our Neighborhood values name"
+
+
+st_drop_geometry(bothRegressions) %>%
+  group_by(Regression, neighborhood) %>%
+  summarise(mean.MAPE = mean(SalePrice.APE, na.rm = T)) %>%
+  ungroup() %>%
+  left_join(neighborhoods) %>%
+    st_as_sf() %>%
+   ggplot() +
+    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXX") +
+      geom_sf(colour = "gray", aes(fill = q5(mean.MAPE))) +
+      scale_fill_manual(values = paletteMap) +
+  labs(title = "Figure XXX: MAPE by Neighborhood") +
+      mapTheme()
+
+```
+
+
+```{r  scatterplot plot of MAPE by neighborhood as a function of mean price by neighborhood}
+
+scatter_neighborhood <-
+    boulder.test.neighborhood %>%
+    group_by(neighborhood) %>%
+    dplyr::select(neighborhood, SalePrice.APE, SalePrice.Predict)
+
+
+mean_scatter_neighborhood <-
+  scatter_neighborhood %>%
+  group_by(neighborhood) %>%
+  summarise_at(vars("SalePrice.APE", "SalePrice.Predict"), mean)
+
+
+plot(mean_scatter_neighborhood$SalePrice.Predict, mean_scatter_neighborhood$SalePrice.APE, main="Figure XXX: MAPE by Neighborhood and Mean Price by Neighborhood", xlab="Mean Price by Neighborhood", ylab="MAPE by neighborhood") +
+  plotTheme()
+
+
+```
+
+
+
+```{r Testing Model's Generalizability with race or income with Tidycensus}
+
+
+
+```
+
+
