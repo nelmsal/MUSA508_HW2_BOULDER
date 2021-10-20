@@ -159,7 +159,7 @@ B.owner = read.csv(owner_path)
 # B.build = read.csv(build_path) 
 ```
 
-# Parcel Joins
+### 1.A.2 Parcel Joins
 
 
 ```{r parcel}
@@ -168,7 +168,7 @@ glimpse(B.par)
 
 ```
 
-# Parcel Clean
+### 1.A.3 Parcel Clean
 
 ```{r parcel_clean}
 
@@ -205,11 +205,31 @@ ggplot() +
   plot_limits(poly.geometry= B.dupe)
 ```
 
-## 1.A
 
+### 1.A.99 Set Up Price Dataset
 
+```{r price_dataset}
 
-# Set Up Regression
+ID_fields = c("MUSA_ID")
+
+variable_fields = c(
+# 1. Num of Bedrooms
+  "nbrBedRoom",
+# 2. Main Square Foot
+  "mainfloorSF",
+# 3. Full Bathroom
+  "nbrFullBaths"
+)
+
+B.data = B.sales[,c(ID_fields,variable_fields,'geometry')]
+
+glimpse(B.data)
+```
+
+## B.	Table of Summary Statistics
+*Present a table of summary statistics with variable descriptions.*
+
+*Sort these variables by their category (internal characteristics, amenities/public services or spatial structure).Check out the `stargazer` package for this.*
 
 Table of summary Statistics 
 
@@ -223,7 +243,9 @@ Table of summary Statistics
 ```
 
 
-#Correlation matrix to assess multicollinearity
+## C.	Correlation Matrix
+*Present a correlation matrix*
+
 
 ```{r correlation matrix}
 
@@ -256,6 +278,8 @@ hist(variables, breaks=50)
 
 ```
 
+
+
 ```{r log transformed}
 
 dataset$variable <- log(var)
@@ -281,6 +305,11 @@ hist(lnvariables, breaks=50)
 ```
 
 
+## D.	Plots of Home Sales Price & 4 Independent Variables
+*Present 4 home price correlation scatterplots that you think are of interest.*
+
+*I’m going to look for interesting open data that you’ve integrated with the home sale observations*
+
 Scatterplots of home price correlation that are of interest. Looking at interesting open data that we've intergrated
 ```{r scatterplots}
 plot(dataset$dependentvariable, dataset$independentvariable)
@@ -289,6 +318,10 @@ plot(dataset$dependentvariable, dataset$independentvariable)
 plot(dataset$dependentvariable, dataset$independentvariable)
 
 ```
+
+
+#E.	Map of Dependent Variable (Sales Price)
+*Develop 1 map of your dependent variable (sale price)*
 
 Map of Dependent Variable - Housing Prices 
 
@@ -310,8 +343,25 @@ ggplot() +
 ```
 
 
+# F.	Maps of 3 Independent Variables
+*Develop 3 maps of 3 of your most interesting independent variables.*
 
-# Setting up Test and Train datasets
+# G. Assorted Figures
+*Include any other maps/graphs/charts you think might be of interest.*
+
+# 2.	Methods
+
+## 2.A.	Describe Method
+*Briefly describe your method (remember who your audience is)*
+
+# 3.	Results 
+
+## A.	Interpret Results
+*Briefly interpret each in the context of the Zillow use case*
+
+## B.	Split Training/Test
+*Split the ‘toPredict’ == 0 into a separate training and test set using a 75/25 split.*
+### Setting up Test and Train datasets
 
 
 ```{r test and train datasets}
@@ -348,19 +398,6 @@ boston.test <- dataset.sf[-inTrain,]
 ```
 
 
-# 2.	Methods
-
-## 2.A.	Describe Method
-*Briefly describe your method (remember who your audience is)*
-
-# 3.	Results 
-
-## A.	Interpret Results
-*Briefly interpret each in the context of the Zillow use case*
-
-## B.	Split Training/Test
-*Split the ‘toPredict’ == 0 into a separate training and test set using a 75/25 split.*
-
 ## C.	Table of lm Summary (Training)
 *Provide a polished table of your (training set) lm summary results (coefficients, R2 etc).*
 
@@ -385,8 +422,8 @@ boston.test <- dataset.sf[-inTrain,]
 ## I. Map of MAPE by Neighborhood (Test)
 *Using the test set predictions, provide a map of mean absolute percentage error (MAPE) by neighborhood.*
 
-## I.	Plot of MAPE by Neighborhood
+## J.	Plot of MAPE by Neighborhood
 *Provide a scatterplot plot of MAPE by neighborhood as a function of mean price by neighborhood.*
 
-## J.	Split City & 
+## K.	Split City
 *Using tidycensus, split your city into two groups (perhaps by race or income) and test your model’s generalizability. Is your model generalizable?*
