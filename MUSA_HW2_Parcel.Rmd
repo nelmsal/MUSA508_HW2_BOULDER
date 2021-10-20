@@ -106,8 +106,15 @@ plot_limits = function(
 
 col_crs = st_crs('ESRI:102653')
 
+studentData_path =
+  "data/studentData.geojson"
+B.sales =
+  st_read(studentData_path) %>% 
+  st_set_crs('ESRI:102254') %>% 
+  st_transform(., col_crs) 
+
 parcel_path = 
-  "C:/Users/nelms/Documents/Code/Data/Boulder_Parcels_20211009.geojson" 
+  "data/Boulder_Parcels_20211009.geojson" 
 B.par = st_read(parcel_path) %>%
   rename(ID = OBJECTID, APN=PARCEL_NO) %>%
   select(ID,APN) %>% 
@@ -118,13 +125,6 @@ B.par = st_read(parcel_path) %>%
 attributes(B.par$area) = NULL
 B.par = B.par %>% filter(area>0)
 
-
-studentData_path =
-  "C:/Users/nelms/Documents/Code/Data/studentData.geojson"
-B.sales =
-  st_read(studentData_path) %>% 
-  st_set_crs('ESRI:102254') %>% 
-  st_transform(., col_crs) 
 
 ggplot() + geom_sf(data=B.sales)
 
