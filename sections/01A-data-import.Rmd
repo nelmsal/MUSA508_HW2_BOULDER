@@ -1,0 +1,124 @@
+# 1. Data
+## 1.A Gathering Data
+*Briefly describe your methods for gathering the data.*
+
+### 1.A.1 Import Data
+```{r import}
+
+col_crs = st_crs('ESRI:102653')
+
+studentData_path =
+  "data/studentData.geojson"
+boulder.sales =
+  st_read(studentData_path) %>% 
+  st_set_crs('ESRI:102254') %>% 
+  st_transform(., col_crs) 
+
+parcel_path = 
+  "data/Boulder_Parcels_20211009.geojson" 
+boulder.parcel = st_read(parcel_path) %>%
+  rename(ID = OBJECTID, APN=PARCEL_NO) %>%
+  select(ID,APN) %>% 
+  st_transform(., col_crs) %>% # North Col State Plane Feet
+  mutate(
+    geometry = st_make_valid(geometry), 
+    area = st_area(geometry)) 
+attributes(boulder.parcel$area) = NULL
+boulder.parcel = boulder.parcel %>% filter(area>0)
+
+
+ggplot() + geom_sf(data=boulder.sales)
+
+address_path = 
+  "data/Boulder_AddressPts_20211009.geojson"
+boulder.address = st_read(address_path)%>% 
+  st_transform(., col_crs)
+
+acct_path = 
+  "data/Account_Parcels.csv"
+boulder.parcel.acct = read.csv(acct_path) 
+
+build_path = 
+  "data/Buildings.csv"
+boulder.parcel.build = read.csv(build_path) 
+
+land_path = 
+  "data/Land.csv"
+boulder.parcel.land = read.csv(land_path) 
+
+owner_path = 
+  "data/Owner_Address.csv"
+boulder.parcel.owner = read.csv(owner_path) 
+
+# permits = 
+#   "data/Permits.csv"
+# B.build = read.csv(build_path) 
+```
+
+### 1.A.2 Parcel Joins
+
+
+```{r parcel}
+
+glimpse(boulder.parcel)
+
+```
+
+### 1.A.3 Parcel Clean
+
+```{r parcel_clean}
+
+OG_len = nrow(boulder.parcel%>% st_drop_geometry())
+APN_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., APN))
+ID_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., ID, APN))
+area_len = nrow(boulder.parcel[boulder.parcel$area>0,] %>% st_drop_geometry() )
+
+print(OG_len)
+print(OG_len-APN_len)
+print(OG_len-ID_len)
+print(OG_len-area_len)
+
+boulder.parcel[(boulder.parcel$area<=0)&(boulder.parcel$APN %in% dupe_APN),]
+
+n_occur = 
+  data.frame(table(boulder.parcel$APN)) %>% 
+  rename(APN=Var1) %>% arrange(-Freq)
+
+dupe_APN = n_occur[n_occur$Freq > 1,"APN"]
+B.dupe = 
+  boulder.parcel[boulder.parcel$APN %in% dupe_APN,] %>% group_by(APN) %>%
+  summarize(geometry = st_union(geometry))
+
+boulder.parcel[(boulder.parcel$APN == "157505036006")&
+        (st_area(boulder.parcel$geometry)>0),]
+
+
+
+ggplot() + 
+  geom_sf(data=boulder.parcel, lwd=.1) + 
+  geom_sf(data=B.dupe, 
+          fill='pink', color='red') + 
+  plot_limits(poly.geometry= B.dupe)
+```
+
+
+### 1.A.99 Set Up Price Dataset
+
+```{r price_dataset}
+
+ID_fields = c("MUSA_ID")
+
+variable_fields = c(
+# 1. Num of Bedrooms
+  "nbrBedRoom",
+# 2. Main Square Foot
+  "mainfloorSF",
+# 3. Full Bathroom
+  "nbrFullBaths"
+)
+
+B.data = boulder.sales[,c(ID_fields,variable_fields,'geometry')]
+
+glimpse(B.data)
+```
+

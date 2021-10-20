@@ -1,0 +1,48 @@
+---
+title: "Assignment 2: Boulder County House Prices Algorithm"
+author: "Gianluca Nelms and Alex Mangiapane"
+date: "10/22/2021"
+output: 
+  bookdown::html_document2: 
+    code_folding: hide
+    fig_caption: yes
+    toc: yes
+editor_options: 
+  markdown: 
+    wrap: sentence
+  chunk_output_type: console
+---
+
+# 0. Introduction
+
+```{r child = '00-intro.Rmd'}
+```
+
+-------------------------------
+
+# 1. Data
+
+
+```{r child = '01A-data-import.Rmd'}
+```
+
+```{r child = '01BG-data-visuals.Rmd'}
+```
+
+-------------------------------
+# 2.	Methods
+
+```{r child = '02-methods.Rmd'}
+```
+
+-------------------------------
+
+# 3.	Results 
+
+```{r child = '03-results.Rmd'}
+```
+----------------------------------
+
+```{r render}
+rmarkdown::render('sections/index.rmd')
+```
