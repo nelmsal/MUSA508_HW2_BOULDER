@@ -117,8 +117,8 @@ variable_fields = c(
   "nbrFullBaths"
 )
 
-B.data = boulder.sales[,c(ID_fields,variable_fields,'geometry')]
+boulder.data = boulder.sales[,c(ID_fields,variable_fields,'geometry')]
 
-glimpse(B.data)
+glimpse(boulder.data)
 ```
 
