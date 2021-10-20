@@ -5,20 +5,20 @@
 
 ### 3.A.1 Run the Regression
 
-```{r run the regression}
+```{r regression_run}
 
 fit <- lm(SalePrice ~ ., data = st_drop_geometry(HousesPresent) %>%
              dplyr::select(SalePrice...........VARIABLES))
 ```
 
 
-## 3.B.	Split Training/Test
+## 3.B.	Partition Training & Test Sets
 *Split the ‘toPredict’ == 0 into a separate training and test set using a 75/25 split.*
 
-### 3.B.1 Setting up Test and Train datasets
+### 3.B.1 Partition up Test and Train datasets
 
 
-```{r test and train datasets}
+```{r partition_train_test}
 
 #need to create a type of neighborhoods data set i believe, and join it into our pricesKnown data set. 
 
@@ -29,7 +29,6 @@ fit <- lm(SalePrice ~ ., data = st_drop_geometry(HousesPresent) %>%
 inTrain <- createDataPartition(
               y = paste(HousesPresent$XXXX, HousesPresent$XXXX....), 
               p = .75, list = FALSE)
-
 boulder.training <- HousesPresent[inTrain,] 
 boulder.test <- HousesPresent[-inTrain,]  
 
