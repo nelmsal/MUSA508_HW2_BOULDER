@@ -14,12 +14,23 @@ boulder.sales =
   st_set_crs('ESRI:102254') %>% 
   st_transform(., col_crs) 
 
+boulder.sales$lagPrice = 0
 
+boulder.variables = 
+  data.frame(
+# 0. Housing Sales Price
+    var_name=c("price"),
+    var_num=(0),
+    var_type=('Dependent'))
 
-ggplot() + geom_sf(data=boulder.sales)
+add_v = function(vnme, vnum, vtype){
+  if(vnme %in% boulder.variables$var_name){print("didnt add since it is already in")}
+  else{
+    return(rbind(boulder.variables,c(
+    vnme, vnum, vtype
+    )) %>% arrange(var_num))}}
 
-
-
+#ggplot() + geom_sf(data=boulder.sales)
 
 ```
 
@@ -105,6 +116,14 @@ ggplot() +
 ```
 
 
+### 1.A.8 Assorted Variable Creation
+
+```{r assorted}
+
+
+
+```
+
 ### 1.A.9 Set Up Price Dataset
 
 variables are one of these types:
@@ -122,12 +141,6 @@ ID_fields = c(
   "toPredict"
   )
 
-boulder.variables = 
-  data.frame(
-# 0. Housing Sales Price
-    var_name=c("price"),
-    var_num=(0),
-    var_type=('Dependent'))
 
 # 1. Num of Bedrooms
 boulder.variables = rbind(boulder.variables,c(
@@ -135,27 +148,33 @@ boulder.variables = rbind(boulder.variables,c(
 ))
 
 # 2. Main Square Foot
-boulder.variables = rbind(boulder.variables,c(
+boulder.variables = add_v(
   "mainfloorSF",   2,    "Internal"
-))
+)
 
-# 3. Full Bathroom
-boulder.variables = rbind(boulder.variables,c(
-  "nbrFullBaths",  3,    "Internal"
-))
+add_v(
+  "price",   2,    "Internal"
+)
+
 
 # N. Nearest Neighbor
 boulder.variables = rbind(boulder.variables,c(
   "lagPrice",      99,   "Spatial"
 ))
-  
-boulder.sales$lagPrice = 0
 
+# 3. Full Bathroom
+boulder.variables = rbind(boulder.variables,c(
+  "nbrBaths",     3,    "Internal"
+))
+
+ 
 boulder.data = boulder.sales[,c(
   ID_fields,
   boulder.variables$var_name,
   'geometry'
   )]
+
+boulder.dv = boulder.variables[!boulder.variables$var_num %in% c(0,99), 'var_name']
 
 glimpse(boulder.data)
 

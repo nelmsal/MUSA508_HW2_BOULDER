@@ -4,15 +4,20 @@
 
 *Sort these variables by their category (internal characteristics, amenities/public services or spatial structure).Check out the `stargazer` package for this.*
 
-Table of summary Statistics 
+Will be using the topredict=0 homes for this Exploratory Data Analysis
 
 ```{r summary statistics}
 
-boulder.dataSum <- boulder.data %>%
-  dplyr:: select(VARIABLES LIST)
+boulder.dataSum = boulder.predict.0 %>%
+  dplyr:: select(c(price, boulder.dv)) %>%
+  st_drop_geometry(.)
 
-boulder.dataSum <- st_drop_geomatry(boulder.dataSum)
-stargazer(as.data.frame(boulder.dataSum), type="text", digits=1, title="Table1: Summary Statistics for Boulder COunty Housing", out = 'Boulder Data.txt")
+glimpse(boulder.dataSum)
+
+stargazer(boulder.dataSum, 
+          type="text", digits=1, 
+          title="Table1: Summary Statistics for Boulder COunty Housing",
+          out = "Boulder Data.txt")
 
 
 ```
@@ -42,12 +47,11 @@ see which variables have positive correlation, which variables have negative cor
 
 ```{r correlation matrix}
 
-corrPlotVariables <- boulder.data %>%
-  dplyr::select(VARIABLES LIST)
-
+corrPlotVariables <- boulder.predict.0 %>%
+  dplyr::select(boulder.dv) %>% st_drop_geometry(.)
 
 numericVars <- 
-  select_if(st_drop_geometry(corrPlotVariables), is.numeric) %>% na.omit()
+  select_if(corrPlotVariables, is.numeric)
 
 ggcorrplot(
   round(cor(numericVars), 1), 
