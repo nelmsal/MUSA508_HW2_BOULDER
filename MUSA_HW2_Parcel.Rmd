@@ -14,6 +14,8 @@ editor_options:
 ---
 
 
+# 0. Introduction
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -100,8 +102,11 @@ plot_limits = function(
 
 ```
 
-# Import Data
+# 1. Data
+## 1.A Gathering Data
+*Briefly describe your methods for gathering the data.*
 
+### 1.A.1 Import Data
 ```{r import}
 
 col_crs = st_crs('ESRI:102653')
@@ -200,11 +205,9 @@ ggplot() +
   plot_limits(poly.geometry= B.dupe)
 ```
 
+## 1.A
 
 
-#Data 
-
-Discuss briefly methods for gathering the data
 
 # Set Up Regression
 
@@ -343,3 +346,47 @@ boston.training <- dataset.sf[inTrain,]
 boston.test <- dataset.sf[-inTrain,]  
  
 ```
+
+
+# 2.	Methods
+
+## 2.A.	Describe Method
+*Briefly describe your method (remember who your audience is)*
+
+# 3.	Results 
+
+## A.	Interpret Results
+*Briefly interpret each in the context of the Zillow use case*
+
+## B.	Split Training/Test
+*Split the ‘toPredict’ == 0 into a separate training and test set using a 75/25 split.*
+
+## C.	Table of lm Summary (Training)
+*Provide a polished table of your (training set) lm summary results (coefficients, R2 etc).*
+
+## D.	Table of MAE & MAPE (Test)
+*Provide a polished table of mean absolute error and MAPE for a single test set.*
+*Check out the “kable” function for markdown to create nice tables.*
+
+## E.	Cross-Validation Test Results
+*Provide the results of your cross-validation tests. This includes mean and standard deviation MAE. Do 100 folds and plot your cross-validation MAE as a histogram.*
+
+*Is your model generalizable to new data?*
+
+## F.	Plot Predicted Prices
+*Plot predicted prices as a function of observed prices*
+
+## G.	Map of Residuals (Test)
+*Provide a map of your residuals for your test set. Include a Moran’s I test and a plot of the spatial lag in errors.*
+
+## H.	Map of Predicted Values
+*Provide a map of your predicted values for where ‘toPredict’ is both 0 and 1.*
+
+## I. Map of MAPE by Neighborhood (Test)
+*Using the test set predictions, provide a map of mean absolute percentage error (MAPE) by neighborhood.*
+
+## I.	Plot of MAPE by Neighborhood
+*Provide a scatterplot plot of MAPE by neighborhood as a function of mean price by neighborhood.*
+
+## J.	Split City & 
+*Using tidycensus, split your city into two groups (perhaps by race or income) and test your model’s generalizability. Is your model generalizable?*
