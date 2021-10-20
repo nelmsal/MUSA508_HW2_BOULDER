@@ -320,7 +320,7 @@ plot(dataset$dependentvariable, dataset$independentvariable)
 ```
 
 
-#E.	Map of Dependent Variable (Sales Price)
+## E.	Map of Dependent Variable (Sales Price)
 *Develop 1 map of your dependent variable (sale price)*
 
 Map of Dependent Variable - Housing Prices 
@@ -343,10 +343,10 @@ ggplot() +
 ```
 
 
-# F.	Maps of 3 Independent Variables
+## F.	Maps of 3 Independent Variables
 *Develop 3 maps of 3 of your most interesting independent variables.*
 
-# G. Assorted Figures
+## G. Assorted Figures
 *Include any other maps/graphs/charts you think might be of interest.*
 
 # 2.	Methods
