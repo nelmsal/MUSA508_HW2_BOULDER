@@ -1,0 +1,223 @@
+
+(this doesnt need to be in the report, but a method of filtering and transforming unon normal ly distributed data)
+
+### Histogram
+Plot histograms to assess Normalcy of Data. We don't need to add this in the report, but can be part of data wrangling or feature analysis. ANy that don't appear normal, look at the log transformed 
+```{r histograms}
+
+hist(variables, breaks=50)
+hist(variables, breaks=50)
+.
+.
+.
+hist(variables, breaks=50)
+
+
+
+
+```
+
+### Set Up Regression
+
+Split up the data between sales prices known, and the sales prices that are set to 0 to be predicted 
+
+```{r data partition}
+
+HousesPresent <- boulder.data %>%
+  filter(.,toPredict ==0)
+HousesFuture <- boulder.data %>%
+  filter(., toPredict ==1)
+
+```
+
+
+## B.	Table of Summary Statistics
+*Present a table of summary statistics with variable descriptions.*
+
+*Sort these variables by their category (internal characteristics, amenities/public services or spatial structure).Check out the `stargazer` package for this.*
+
+Table of summary Statistics 
+
+```{r summary statistics}
+
+boulder.dataSum <- boulder.data %>%
+  dplyr:: select(VARIABLES LIST)
+
+boulder.dataSum <- st_drop_geomatry(boulder.dataSum)
+stargazer(as.data.frame(boulder.dataSum), type="text", digits=1, title="Table1: Summary Statistics for Boulder COunty Housing", out = 'Boulder Data.txt")
+
+
+```
+
+
+## C.	Correlation Matrix
+*Present a correlation matrix*
+
+Correlation matrix to assess multicollinearity
+see which variables have positive correlation, which variables have negative correlation, and which ones are correlated above 0.8 or negative 0.8, and if that happens, only choose one
+
+```{r correlation matrix}
+
+corrPlotVariables <- boulder.data %>%
+  dplyr::select(VARIABLES LIST)
+
+
+numericVars <- 
+  select_if(st_drop_geometry(corrPlotVariables), is.numeric) %>% na.omit()
+
+ggcorrplot(
+  round(cor(numericVars), 1), 
+  p.mat = cor_pmat(numericVars),
+  colors = c("#25CB10", "white", "#FA7800"),
+  type="lower",
+  insig = "blank") +  
+    labs(title = "Figure 1: Boulder Housing Correlation across Numeric Variables") 
+
+```
+
+
+
+
+```{r log transformed}
+
+dataset$variable <- log(var)
+.
+.
+.
+
+dataset$variable <- Log(1+var)) --> #needed if there are any zeros in the dataset
+```
+
+```{r histograms of log transformed}
+
+hist(lnvariables, breaks=50)
+hist(lnvariables, breaks=50)
+.
+.
+.
+hist(lnvariables, breaks=50)
+
+#if any variables still do not appear normal after log transform, then we will have to deicde if keeping them in or not. Obviously improtant variables (such as dependnet variable ho
+
+```
+
+
+## D.	Plots of Home Sales Price & 4 Independent Variables
+*Present 4 home price correlation scatterplots that you think are of interest.*
+
+*I’m going to look for interesting open data that you’ve integrated with the home sale observations*
+
+Scatterplots of home price correlation that are of interest. 
+Looking at interesting open data that we've integrated
+```{r scatterplots}
+
+
+#1 variable 
+
+ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+  geom_point(size=2, shape=20)  +
+  labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
+  geom_smooth(method = "lm", se=F, colour = "blue") +
+  plotTheme()
+
+
+#2 variable 
+
+ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+  geom_point(size=2, shape=20)  +
+  labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
+  geom_smooth(method = "lm", se=F, colour = "green") +
+  plotTheme()
+
+#3 variable 
+
+ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+  geom_point(size=2, shape=20)  +
+  labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
+  geom_smooth(method = "lm", se=F, colour = "red") +
+  plotTheme()
+
+#4 variable 
+
+ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+  geom_point(size=2, shape=20)  +
+  labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
+  geom_smooth(method = "lm", se=F, colour = "orange") +
+  plotTheme()
+
+```
+
+
+## E.	Map of Dependent Variable (Sales Price)
+*Develop 1 map of your dependent variable (sale price)*
+
+Map of Dependent Variable - Housing Prices 
+
+```{r map of dependent variable}
+
+#maybe we can insert faded base map of boulder county?
+
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(SalePrice))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+
+```
+
+
+## F.	Maps of 3 Independent Variables
+*Develop 3 maps of 3 of your most interesting independent variables.*
+Map of independent Variables - XXXX, XXXX, XXXX, XXXX
+
+```{r map of independent variable}
+
+#maybe we can insert faded base map of boulder county?
+
+#variable 1
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(XXXXXX))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+#variable 2
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(XXXXX))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+#variable 3
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(XXXX))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+#variable 4
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
+  geom_sf(data = HousesPresent, aes(colour = q5(XXXXX))) +
+  scale_colour_manual(values = paletteMap) +
+  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+  mapTheme()
+
+
+```
+
+## G. Assorted Figures
+*Include any other maps/graphs/charts you think might be of interest.*
+
+
+-------------------------------
