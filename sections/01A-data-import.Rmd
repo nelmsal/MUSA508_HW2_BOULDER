@@ -107,6 +107,12 @@ ggplot() +
 
 ### 1.A.9 Set Up Price Dataset
 
+variables are one of these types:
+1.	Internal characteristics (e.g. bedrooms)
+2.	amenities/public services (e.g. proximity to parks)
+3.	spatial structure (e.g. nearby prices)
+
+
 ```{r price_dataset}
 
 ID_fields = c(
@@ -116,42 +122,42 @@ ID_fields = c(
   "toPredict"
   )
 
-dependent_field = c(
-# 0. Housing Sales Price
-  "price"
-)
-
-variable_fields = c(
-# 1. Num of Bedrooms
-  "nbrBedRoom",
-# 2. Main Square Foot
-  "mainfloorSF",
-# 3. Full Bathroom
-  "nbrFullBaths",
-
-# N. Nearest Neighbor
-  "lagPrice"
-)
-
 boulder.variables = 
   data.frame(
-    var_name=c(dependent_field, variable_fields),
-    var_num=seq(0, length(variable_fields), by=1))
+# 0. Housing Sales Price
+    var_name=c("price"),
+    var_num=(0),
+    var_type=('Dependent'))
 
+# 1. Num of Bedrooms
+boulder.variables = rbind(boulder.variables,c(
+  "nbrBedRoom",    1,    "Internal"
+))
+
+# 2. Main Square Foot
+boulder.variables = rbind(boulder.variables,c(
+  "mainfloorSF",   2,    "Internal"
+))
+
+# 3. Full Bathroom
+boulder.variables = rbind(boulder.variables,c(
+  "nbrFullBaths",  3,    "Internal"
+))
+
+# N. Nearest Neighbor
+boulder.variables = rbind(boulder.variables,c(
+  "lagPrice",      99,   "Spatial"
+))
+  
 boulder.sales$lagPrice = 0
-
-boulder.variables
 
 boulder.data = boulder.sales[,c(
   ID_fields,
-  dependent_field,
-  variable_fields,
+  boulder.variables$var_name,
   'geometry'
   )]
 
 glimpse(boulder.data)
-
-boulder.variables
 
 ```
 
