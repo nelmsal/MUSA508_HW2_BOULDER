@@ -17,18 +17,6 @@ hist(variables, breaks=50)
 
 ```
 
-### Set Up Regression
-
-Split up the data between sales prices known, and the sales prices that are set to 0 to be predicted 
-
-```{r data partition}
-
-boulder.predict <- boulder.data %>%
-  filter(.,toPredict == 0)
-boulder.notpredict <- boulder.data %>%
-  filter(., toPredict == 1)
-
-```
 
 
 ## B.	Table of Summary Statistics

@@ -20,7 +20,7 @@ fit <- lm(SalePrice ~ ., data = st_drop_geometry(boulder.predict) %>%
 
 ```{r partition_train_test}
 
-#need to create a type of neighborhoods data set i believe, and join it into our pricesKnown data set. 
+#need to create a type of neighbors data set i believe, and join it into our pricesKnown data set. 
 
 #need the geometries in order to do the Moran's I test later, and to plot the points 
 
@@ -142,14 +142,14 @@ library(kableExtra)
 library(scales)
 
 coords <- st_coordinates(boulder.predict)
-neighborhoods <- knn2nb(knearneigh(coords, 5)) #the 5 nearest neighborhoods
+neighbors <- knn2nb(knearneigh(coords, 5)) #the 5 nearest neighbors
 
-spatialWeights <- nb2listw(neighborhoods, style="W") 
+spatialWeights <- nb2listw(neighbors, style="W") 
 boulder.predict$lagPrice <- lag.listw(spatialWeights, boulder.predict$SalePrice)
 
 coordinates.test <-  st_coordinates(boulder.test)
-neighborList.test <- knn2nb(knearneigh(coordinates.test, 5))
-spatialWeights.test <- nb2listw(neighborhoods.test, style="W")
+neighbors.test <- knn2nb(knearneigh(coordinates.test, 5))
+spatialWeights.test <- nb2listw(neighbors.test, style="W")
 
 ```
 #### 3.G.2.B Plot
@@ -191,7 +191,7 @@ ggplot(as.data.frame(BouldermoranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)
 ```{r map of predicted values}
 
 housespredicted <- b.sales %>%
-  mutate(prediction = predict(reg.neighborhood, b.sales))
+  mutate(prediction = predict(reg.neighbors, b.sales))
 
 ggplot() +
   geom_sf(data = XXXX, fill = "gray90", colour = "white") +
@@ -204,22 +204,22 @@ ggplot() +
 
 ```
 
-## I. Map of MAPE by Neighborhood (Test)
-*Using the test set predictions, provide a map of mean absolute percentage error (MAPE) by neighborhood.*
+## I. Map of MAPE by neighbors (Test)
+*Using the test set predictions, provide a map of mean absolute percentage error (MAPE) by neighbors.*
 
-### I.1.A Accounting for neighborhood variance 
+### I.1.A Accounting for neighbors variance 
 
-```{r Neighborhood variance into the Regression}
+```{r neighbors variance into the Regression}
 
 #Make regression model 
 
-reg.neighborhood <- lm(SalePrice ~ ., data = as.data.frame(boulder.training) %>% 
-                                 dplyr::select(XXXX_neighborhood name, SalePrice, XXXXXXXXXXxx))
+reg.neighbors <- lm(SalePrice ~ ., data = as.data.frame(boulder.training) %>% 
+                                 dplyr::select(XXXX_neighbors name, SalePrice, XXXXXXXXXXxx))
 #Outcomes
-boulder.test.neighborhood <-
+boulder.test.neighbors <-
   boulder.test %>%
-  mutate(Regression = "Neighborhood Effects",
-         SalePrice.Predict = predict(reg.neighborhood, boulder.test), 
+  mutate(Regression = "neighbors Effects",
+         SalePrice.Predict = predict(reg.neighbors, boulder.test), 
          SalePrice.Error = SalePrice - SalePrice.Predict,       
          SalePrice.AbsError = abs(SalePrice - SalePrice.Predict), 
          SalePrice.APE = (abs(SalePrice - SalePrice.Predict)) / SalePrice)%>% 
@@ -230,26 +230,26 @@ boulder.test.neighborhood <-
 
 bothRegressions <-
   rbind(
-    dplyr::select(boulder.test, starts_with("SalePrice"), Regression, neighborhood) %>%
+    dplyr::select(boulder.test, starts_with("SalePrice"), Regression, neighbors) %>%
       mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)),
-    dplyr::select(boulder.test.nhood, starts_with("SalePrice"), Regression, XXXX_Neighborhood Name) %>%
+    dplyr::select(boulder.test.nhood, starts_with("SalePrice"), Regression, XXXX_neighbors Name) %>%
       mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)))   
 
 
 st_drop_geometry(bothRegressions) %>%
-  gather(Variable, Value, -Regression, -neighborhood) %>%
+  gather(Variable, Value, -Regression, -neighbors) %>%
   filter(Variable == "SalePrice.AbsError" | Variable == "SalePrice.APE") %>%
   group_by(Regression, Variable) %>%
     summarize(meanValue = mean(Value, na.rm = T)) %>%
     spread(Variable, meanValue) %>%
-    kable(caption = "Table XX: Neighborhood Effect on Error")
+    kable(caption = "Table XX: neighbors Effect on Error")
 
 
 ```
 
-### I.1.A Accounting for neighborhood variance 
+### I.1.A Accounting for neighbors variance 
 
-```{r Plotting the predicted prices from the new neighborhood variance regression }
+```{r Plotting the predicted prices from the new neighbors variance regression }
 
 bothRegressions %>%
   dplyr::select(SalePrice.Predict, SalePrice, Regression) %>%
@@ -266,47 +266,47 @@ bothRegressions %>%
 
 ```
 
-I.2 Map of MAPE by Neighborhoods
+I.2 Map of MAPE by neighborss
 
-```{r Test Set Predictions, MAPE of neighborhoods}
+```{r Test Set Predictions, MAPE of neighbors}
 
-names(bothRegressions)[names(bothRegressions) == "OUR NEGHBORHOOD NAME"] <- "Our Neighborhood values name"
+names(bothRegressions)[names(bothRegressions) == "OUR NEGHBORHOOD NAME"] <- "Our neighbors values name"
 
 
 st_drop_geometry(bothRegressions) %>%
-  group_by(Regression, neighborhood) %>%
+  group_by(Regression, neighbors) %>%
   summarise(mean.MAPE = mean(SalePrice.APE, na.rm = T)) %>%
   ungroup() %>%
-  left_join(neighborhoods) %>%
+  left_join(neighbors) %>%
     st_as_sf() %>%
    ggplot() +
     geom_sf(data = XXXX, fill = "XXXX", colour = "XXXX") +
       geom_sf(colour = "gray", aes(fill = q5(mean.MAPE))) +
       scale_fill_manual(values = paletteMap) +
-  labs(title = "Figure XXX: MAPE by Neighborhood") +
+  labs(title = "Figure XXX: MAPE by neighbors") +
       mapTheme()
 
 ```
 
-## J.	Plot of MAPE by Neighborhood
-*Provide a scatterplot plot of MAPE by neighborhood as a function of mean price by neighborhood.*
+## J.	Plot of MAPE by neighbors
+*Provide a scatterplot plot of MAPE by neighbors as a function of mean price by neighbors.*
 
 
-```{r  scatterplot plot of MAPE by neighborhood as a function of mean price by neighborhood}
+```{r  scatterplot plot of MAPE by neighbors as a function of mean price by neighbors}
 
-scatter_neighborhood <-
-    boulder.test.neighborhood %>%
-    group_by(neighborhood) %>%
-    dplyr::select(neighborhood, SalePrice.APE, SalePrice.Predict)
+scatter_neighbors <-
+    boulder.test.neighbors %>%
+    group_by(neighbors) %>%
+    dplyr::select(neighbors, SalePrice.APE, SalePrice.Predict)
 
 
-mean_scatter_neighborhood <-
-  scatter_neighborhood %>%
-  group_by(neighborhood) %>%
+mean_scatter_neighbors <-
+  scatter_neighbors %>%
+  group_by(neighbors) %>%
   summarise_at(vars("SalePrice.APE", "SalePrice.Predict"), mean)
 
 
-plot(mean_scatter_neighborhood$SalePrice.Predict, mean_scatter_neighborhood$SalePrice.APE, main="Figure XXX: MAPE by Neighborhood and Mean Price by Neighborhood", xlab="Mean Price by Neighborhood", ylab="MAPE by neighborhood") +
+plot(mean_scatter_neighbors$SalePrice.Predict, mean_scatter_neighbors$SalePrice.APE, main="Figure XXX: MAPE by neighbors and Mean Price by neighbors", xlab="Mean Price by neighbors", ylab="MAPE by neighbors") +
   plotTheme()
 
 

@@ -14,6 +14,20 @@ boulder.sales =
   st_set_crs('ESRI:102254') %>% 
   st_transform(., col_crs) 
 
+
+
+ggplot() + geom_sf(data=boulder.sales)
+
+
+
+
+```
+
+### 1.A.2 Parcel Joins
+
+
+```{r parcel}
+
 parcel_path = 
   "data/Boulder_Parcels_20211009.geojson" 
 boulder.parcel = st_read(parcel_path) %>%
@@ -25,9 +39,6 @@ boulder.parcel = st_read(parcel_path) %>%
     area = st_area(geometry)) 
 attributes(boulder.parcel$area) = NULL
 boulder.parcel = boulder.parcel %>% filter(area>0)
-
-
-ggplot() + geom_sf(data=boulder.sales)
 
 address_path = 
   "data/Boulder_AddressPts_20211009.geojson"
@@ -53,14 +64,6 @@ boulder.parcel.owner = read.csv(owner_path)
 # permits = 
 #   "data/Permits.csv"
 # B.build = read.csv(build_path) 
-```
-
-### 1.A.2 Parcel Joins
-
-
-```{r parcel}
-
-glimpse(boulder.parcel)
 
 ```
 
@@ -102,7 +105,7 @@ ggplot() +
 ```
 
 
-### 1.A.99 Set Up Price Dataset
+### 1.A.9 Set Up Price Dataset
 
 ```{r price_dataset}
 
@@ -126,5 +129,18 @@ boulder.data = boulder.sales[,c(
   'geometry')]
 
 glimpse(boulder.data)
+```
+
+### 1.A.10 0/1 Partition
+
+Split up the data between sales prices known, and the sales prices that are set to 0 to be predicted 
+
+```{r data partition}
+
+boulder.predict.0 <- boulder.data %>%
+  filter(.,toPredict == 0)
+boulder.predict.1 <- boulder.data %>%
+  filter(., toPredict == 1)
+
 ```
 
