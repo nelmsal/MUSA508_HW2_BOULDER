@@ -110,11 +110,14 @@ ggplot() +
 ```{r price_dataset}
 
 ID_fields = c(
+#   ID given by michael
   "MUSA_ID",
+#   whether they should be predicted (1) or already have a price (0)
   "toPredict"
   )
 
 dependent_field = c(
+# 0. Housing Sales Price
   "price"
 )
 
@@ -132,10 +135,12 @@ variable_fields = c(
 
 boulder.variables = 
   data.frame(
-    var_name=variable_fields,
-    var_num=seq(1, length(variable_fields), by=1))
+    var_name=c(dependent_field, variable_fields),
+    var_num=seq(0, length(variable_fields), by=1))
 
 boulder.sales$lagPrice = 0
+
+boulder.variables
 
 boulder.data = boulder.sales[,c(
   ID_fields,
@@ -145,6 +150,8 @@ boulder.data = boulder.sales[,c(
   )]
 
 glimpse(boulder.data)
+
+boulder.variables
 
 ```
 
