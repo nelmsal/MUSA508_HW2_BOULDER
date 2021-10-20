@@ -7,7 +7,7 @@
 
 ```{r regression_run}
 
-fit <- lm(SalePrice ~ ., data = st_drop_geometry(HousesPresent) %>%
+fit <- lm(SalePrice ~ ., data = st_drop_geometry(boulder.predict) %>%
              dplyr::select(SalePrice...........VARIABLES))
 ```
 
@@ -27,10 +27,11 @@ fit <- lm(SalePrice ~ ., data = st_drop_geometry(HousesPresent) %>%
 #need to paste in the variable columns that balances factors for categories acorss the trainign and test sets 
 
 inTrain <- createDataPartition(
-              y = paste(HousesPresent$XXXX, HousesPresent$XXXX....), 
+              y = paste(boulder.predict$XXXX, boulder.predict$XXXX....), 
               p = .75, list = FALSE)
-boulder.training <- HousesPresent[inTrain,] 
-boulder.test <- HousesPresent[-inTrain,]  
+
+boulder.training <- boulder.predict[inTrain,] 
+boulder.test <- boulder.predict[-inTrain,]  
 
 ```
 
@@ -80,7 +81,7 @@ set.seed(825)
 
 
 fit.cv <- 
-  train(SalePrice ~ ., data = st_drop_geometry(HousesPresent) %>% 
+  train(SalePrice ~ ., data = st_drop_geometry(boulder.predict) %>% 
                                 dplyr::select(SalePrice, XXXXXXXXX), 
      method = "lm", trControl = fitControl, na.action = na.pass)
 
@@ -140,11 +141,11 @@ library(knitr)
 library(kableExtra)
 library(scales)
 
-coords <- st_coordinates(HousesPresent)
+coords <- st_coordinates(boulder.predict)
 neighborhoods <- knn2nb(knearneigh(coords, 5)) #the 5 nearest neighborhoods
 
 spatialWeights <- nb2listw(neighborhoods, style="W") 
-HousesPresent$lagPrice <- lag.listw(spatialWeights, HousesPresent$SalePrice)
+boulder.predict$lagPrice <- lag.listw(spatialWeights, boulder.predict$SalePrice)
 
 coordinates.test <-  st_coordinates(boulder.test)
 neighborList.test <- knn2nb(knearneigh(coordinates.test, 5))

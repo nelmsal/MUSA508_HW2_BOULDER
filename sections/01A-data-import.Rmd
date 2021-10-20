@@ -106,7 +106,10 @@ ggplot() +
 
 ```{r price_dataset}
 
-ID_fields = c("MUSA_ID")
+ID_fields = c(
+  "MUSA_ID",
+  "toPredict"
+  )
 
 variable_fields = c(
 # 1. Num of Bedrooms
@@ -117,7 +120,10 @@ variable_fields = c(
   "nbrFullBaths"
 )
 
-boulder.data = boulder.sales[,c(ID_fields,variable_fields,'geometry')]
+boulder.data = boulder.sales[,c(
+  ID_fields,
+  variable_fields,
+  'geometry')]
 
 glimpse(boulder.data)
 ```

@@ -23,10 +23,10 @@ Split up the data between sales prices known, and the sales prices that are set 
 
 ```{r data partition}
 
-HousesPresent <- boulder.data %>%
-  filter(.,toPredict ==0)
-HousesFuture <- boulder.data %>%
-  filter(., toPredict ==1)
+boulder.predict <- boulder.data %>%
+  filter(.,toPredict == 0)
+boulder.notpredict <- boulder.data %>%
+  filter(., toPredict == 1)
 
 ```
 
@@ -114,7 +114,7 @@ Looking at interesting open data that we've integrated
 
 #1 variable 
 
-ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+ggplot(data = boulder.predict, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
   geom_point(size=2, shape=20)  +
   labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
   geom_smooth(method = "lm", se=F, colour = "blue") +
@@ -123,7 +123,7 @@ ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
 
 #2 variable 
 
-ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+ggplot(data = boulder.predict, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
   geom_point(size=2, shape=20)  +
   labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
   geom_smooth(method = "lm", se=F, colour = "green") +
@@ -131,7 +131,7 @@ ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
 
 #3 variable 
 
-ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+ggplot(data = boulder.predict, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
   geom_point(size=2, shape=20)  +
   labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
   geom_smooth(method = "lm", se=F, colour = "red") +
@@ -139,7 +139,7 @@ ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
 
 #4 variable 
 
-ggplot(data = HousesPresent, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
+ggplot(data = boulder.predict, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
   geom_point(size=2, shape=20)  +
   labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
   geom_smooth(method = "lm", se=F, colour = "orange") +
@@ -160,7 +160,7 @@ Map of Dependent Variable - Housing Prices
 ggplot() +
   geom_sf(data = XXXX, fill = "gray80", colour = "white") +
   geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = HousesPresent, aes(colour = q5(SalePrice))) +
+  geom_sf(data = boulder.predict, aes(colour = q5(SalePrice))) +
   scale_colour_manual(values = paletteMap) +
   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
   mapTheme()
@@ -181,7 +181,7 @@ Map of independent Variables - XXXX, XXXX, XXXX, XXXX
 ggplot() +
   geom_sf(data = XXXX, fill = "gray80", colour = "white") +
   geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = HousesPresent, aes(colour = q5(XXXXXX))) +
+  geom_sf(data = boulder.predict, aes(colour = q5(XXXXXX))) +
   scale_colour_manual(values = paletteMap) +
   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
   mapTheme()
@@ -190,7 +190,7 @@ ggplot() +
 ggplot() +
   geom_sf(data = XXXX, fill = "gray80", colour = "white") +
   geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = HousesPresent, aes(colour = q5(XXXXX))) +
+  geom_sf(data = boulder.predict, aes(colour = q5(XXXXX))) +
   scale_colour_manual(values = paletteMap) +
   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
   mapTheme()
@@ -199,7 +199,7 @@ ggplot() +
 ggplot() +
   geom_sf(data = XXXX, fill = "gray80", colour = "white") +
   geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = HousesPresent, aes(colour = q5(XXXX))) +
+  geom_sf(data = boulder.predict, aes(colour = q5(XXXX))) +
   scale_colour_manual(values = paletteMap) +
   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
   mapTheme()
@@ -208,7 +208,7 @@ ggplot() +
 ggplot() +
   geom_sf(data = XXXX, fill = "gray80", colour = "white") +
   geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = HousesPresent, aes(colour = q5(XXXXX))) +
+  geom_sf(data = boulder.predict, aes(colour = q5(XXXXX))) +
   scale_colour_manual(values = paletteMap) +
   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
   mapTheme()
