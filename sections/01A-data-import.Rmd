@@ -114,21 +114,38 @@ ID_fields = c(
   "toPredict"
   )
 
+dependent_field = c(
+  "price"
+)
+
 variable_fields = c(
 # 1. Num of Bedrooms
   "nbrBedRoom",
 # 2. Main Square Foot
   "mainfloorSF",
 # 3. Full Bathroom
-  "nbrFullBaths"
+  "nbrFullBaths",
+
+# N. Nearest Neighbor
+  "lagPrice"
 )
+
+boulder.variables = 
+  data.frame(
+    var_name=variable_fields,
+    var_num=seq(1, length(variable_fields), by=1))
+
+boulder.sales$lagPrice = 0
 
 boulder.data = boulder.sales[,c(
   ID_fields,
+  dependent_field,
   variable_fields,
-  'geometry')]
+  'geometry'
+  )]
 
 glimpse(boulder.data)
+
 ```
 
 ### 1.A.10 0/1 Partition
