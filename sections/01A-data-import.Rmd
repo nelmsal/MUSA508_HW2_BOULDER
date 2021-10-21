@@ -24,7 +24,10 @@ boulder.variables =
     var_type=('Dependent'))
 
 add_v = function(vnme, vnum, vtype){
-  if(vnme %in% boulder.variables$var_name){print("didnt add since it is already in")}
+  if(vnme %in% boulder.variables[['var_name']]){
+    print("didnt add since it is already in")
+    return(boulder.variables)
+    }
   else{
     return(rbind(boulder.variables,c(
     vnme, vnum, vtype
@@ -120,11 +123,38 @@ ggplot() +
 
 ```{r assorted}
 
+boulder.sales$nbrBaths =  
+  boulder.sales$nbrFullBaths + boulder.sales$nbrHalfBaths
 
+# 3. Full Bathroom
+boulder.variables = add_v(
+  "nbrBaths",     3,    "Internal"
+)
+
+# 1. Num of Bedrooms
+boulder.variables = add_v(
+  "nbrBedRoom",    1,    "Internal"
+)
+
+# 2. Main Square Foot
+boulder.variables = add_v(
+  "mainfloorSF",   2,    "Internal"
+)
+
+
+# N. Nearest Neighbor
+boulder.variables = add_v(
+  "lagPrice",      99,   "Spatial"
+)
+
+# 3. Built Year
+boulder.variables = add_v(
+  "EffectiveYear",   3,    "Internal"
+)
 
 ```
 
-### 1.A.9 Set Up Price Dataset
+### 1.A.10 Set Up boulder.data & 0/1 Partition
 
 variables are one of these types:
 1.	Internal characteristics (e.g. bedrooms)
@@ -142,32 +172,6 @@ ID_fields = c(
   )
 
 
-# 1. Num of Bedrooms
-boulder.variables = rbind(boulder.variables,c(
-  "nbrBedRoom",    1,    "Internal"
-))
-
-# 2. Main Square Foot
-boulder.variables = add_v(
-  "mainfloorSF",   2,    "Internal"
-)
-
-add_v(
-  "price",   2,    "Internal"
-)
-
-
-# N. Nearest Neighbor
-boulder.variables = rbind(boulder.variables,c(
-  "lagPrice",      99,   "Spatial"
-))
-
-# 3. Full Bathroom
-boulder.variables = rbind(boulder.variables,c(
-  "nbrBaths",     3,    "Internal"
-))
-
- 
 boulder.data = boulder.sales[,c(
   ID_fields,
   boulder.variables$var_name,
@@ -176,20 +180,24 @@ boulder.data = boulder.sales[,c(
 
 boulder.dv = boulder.variables[!boulder.variables$var_num %in% c(0,99), 'var_name']
 
+boulder.predict.0 <- boulder.data %>%
+  filter(.,toPredict == 0)
+boulder.predict.1 <- boulder.data %>%
+  filter(., toPredict == 1)
+
+boulder.variables
+
+
 glimpse(boulder.data)
 
 ```
 
-### 1.A.10 0/1 Partition
+### 
 
 Split up the data between sales prices known, and the sales prices that are set to 0 to be predicted 
 
 ```{r data partition}
 
-boulder.predict.0 <- boulder.data %>%
-  filter(.,toPredict == 0)
-boulder.predict.1 <- boulder.data %>%
-  filter(., toPredict == 1)
 
 ```
 
