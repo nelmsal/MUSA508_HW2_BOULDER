@@ -22,6 +22,7 @@ library(RColorBrewer)
 library(patchwork)
 library(scales)
 library(kableExtra)
+library(ggplot2)
 
 library(tidycensus)
 library(sf)
