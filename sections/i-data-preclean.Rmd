@@ -1,43 +1,16 @@
-# 1. Data
-## 1.A Gathering Data
+# i. Data
+## i.A Gathering Data
 *Briefly describe your methods for gathering the data.*
 
-### 1.A.1 Import Data
+### i.A.1 Import Data
 ```{r import}
 
 col_crs = st_crs('ESRI:102653')
 
-studentData_path =
-  "data/studentData.geojson"
-boulder.sales =
-  st_read(studentData_path) %>% 
-  st_set_crs('ESRI:102254') %>% 
-  st_transform(., col_crs) 
-
-boulder.sales$lagPrice = 0
-
-boulder.variables = 
-  data.frame(
-# 0. Housing Sales Price
-    var_name=c("price"),
-    var_num=(0),
-    var_type=('Dependent'))
-
-add_v = function(vnme, vnum, vtype){
-  if(vnme %in% boulder.variables[['var_name']]){
-    print("didnt add since it is already in")
-    return(boulder.variables)
-    }
-  else{
-    return(rbind(boulder.variables,c(
-    vnme, vnum, vtype
-    )) %>% arrange(var_num))}}
-
-#ggplot() + geom_sf(data=boulder.sales)
 
 ```
 
-### 1.A.2 Parcel Joins
+### i.A.2 Parcel Joins
 
 
 ```{r parcel}
@@ -81,7 +54,7 @@ boulder.parcel = boulder.parcel %>% filter(area>0)
 
 ```
 
-### 1.A.3 Parcel Clean
+### i.A.3 Parcel Clean
 
 ```{r parcel_clean}
 
@@ -120,14 +93,19 @@ ggplot() +
   plot_limits(poly.geometry= B.dupe)
 ```
 
+### i.8 schools
+
 
 ```{r plot_sfs}
 
+school_districts_api = 'https://opendata.arcgis.com/datasets/b552828530424726b144bf9b39b417cc_1.geojson'
+
+school_districts_scores = 
 
 
 ```
 
-### 1.A.9 Assorted Variable Creation
+### i.A.9 Assorted Variable Creation
 
 ```{r assorted}
 
@@ -139,7 +117,7 @@ boulder.variables = add_v(
   "nbrBaths",     3,    "Internal"
 )
 
-# 1. Num of Bedrooms
+# i. Num of Bedrooms
 boulder.variables = add_v(
   "nbrBedRoom",    1,    "Internal"
 )
@@ -162,7 +140,7 @@ boulder.variables = add_v(
 
 ```
 
-### 1.A.10 Set Up boulder.data & 0/1 Partition
+### i.A.10 Set Up boulder.data & 0/1 Partition
 
 variables are one of these types:
 1.	Internal characteristics (e.g. bedrooms)

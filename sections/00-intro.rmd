@@ -1,4 +1,19 @@
 
+
+```{r setup, include=FALSE}
+library(bookdown)
+knitr::opts_chunk$set(
+  echo=TRUE,
+  include=TRUE,
+  warning=FALSE,
+  messages=FALSE,
+  fig.width = 8,
+  fig.keep = 'all',
+  collapse=TRUE
+  )
+options(tigris_class = "sf")
+```
+
 # 0. Introduction
 
 *What is the purpose of this project?*

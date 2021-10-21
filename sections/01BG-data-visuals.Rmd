@@ -1,4 +1,19 @@
 
+```{r setup, include=FALSE}
+library(bookdown)
+knitr::opts_chunk$set(
+  echo=TRUE,
+  include=TRUE,
+  warning=FALSE,
+  messages=FALSE,
+  fig.width = 8,
+  fig.keep = 'all',
+  collapse=TRUE
+  )
+options(tigris_class = "sf")
+```
+
+
 ## B.	Table of Summary Statistics
 *Present a table of summary statistics with variable descriptions.*
 
@@ -6,18 +21,23 @@
 
 Will be using the topredict=0 homes for this Exploratory Data Analysis
 
-```{r summary}
+```{r summary,  results='asis'}
+
+table_num = 1
+table_title = glue("Table {table_num}: Summary Statistics for Boulder County")
 
 boulder.dataSum = boulder.predict.0 %>%
   dplyr:: select(c(price, boulder.dv)) %>%
   st_drop_geometry(.)
 
-glimpse(boulder.dataSum)
-
 stargazer(boulder.dataSum, 
           type="text", digits=1, 
-          title="Table1: Summary Statistics for Boulder COunty Housing",
-          out = "Boulder Data.txt")
+          title=table_title,
+          out = "Boulder Data.txt") 
+  # kable(.
+  #       # , col.names = c("Mean Variables","non-TOD","TOD","non-TOD","TOD"), align="lrrrr"
+  #       ) %>%
+  #     kable_styling()
 
 
 ```
@@ -28,9 +48,24 @@ stargazer(boulder.dataSum,
 ### Histogram
 Plot histograms to assess Normalcy of Data. We don't need to add this in the report, but can be part of data wrangling or feature analysis. ANy that don't appear normal, look at the log transformed 
 ```{r histograms}
+fig_num = 1
+variable_name = 'price'
+hist(
+  boulder.predict.0[[variable_name]], 
+  breaks=50, 
+  main=glue("Figure {fig_num}.0: {variable_name}"),
+  xlab=variable_name)
 
-for (variable in boulder.dv){
-  hist(boulder.predict.0[[variable]], breaks=50, main=variable)
+for (
+  variable_number in seq(1,length(boulder.dv), by=1)
+){
+  #plot_color = plot_colors[variable_number]
+  variable_name = boulder.dv[variable_number]
+  hist(
+    boulder.predict.0[[variable_name]], 
+    breaks=50, 
+    main=glue("Figure {fig_num}.{variable_number}: {variable_name}"),
+    xlab=variable_name)
   }
 
 ```
@@ -44,10 +79,12 @@ see which variables have positive correlation, which variables have negative cor
 
 ```{r correlation matrix}
 
+fig_num = 2
+
 corrPlotVariables = 
   boulder.predict.0 %>%
   select(boulder.dv) %>% st_drop_geometry(.) %>%
-  select_if(corrPlotVariables, is.numeric)
+  select_if(., is.numeric)
 
 ggcorrplot(
   round(cor(corrPlotVariables), 1), 
@@ -55,9 +92,9 @@ ggcorrplot(
   colors = c("#25CB10", "white", "#FA7800"),
   type="lower",
   insig = "blank") +  
-    labs(title = "Figure 1: Boulder Housing Correlation across Numeric Variables") 
+    labs(
+      title = glue("Figure {fig_num}: Boulder Housing Correlation across Numeric Variables")) 
 
-glimpse(select_if(corrPlotVariables, is.numeric))
 ```
 
 
@@ -99,6 +136,8 @@ Looking at interesting open data that we've integrated
 
 ```{r scatterplots}
 
+fig_num = 3
+
 plot_colors= c(
   "blue", "green", "red", "orange"
 )
@@ -138,7 +177,7 @@ for (
         y = boulder.predict.0$price)) +
     geom_point(size=2, shape=20) +
     labs(title = 
-           glue("Figure 2.{variable_number}: {variable_name}"),
+           glue("Figure {fig_num}.{variable_number}: {variable_name}"),
          subtitle = glue("Coefficient = {coefficient}")
          ) +
     geom_smooth(method = "lm", se=F,
@@ -160,18 +199,155 @@ Map of Dependent Variable - Housing Prices
 
 ```{r map of dependent variable}
 
-#maybe we can insert faded base map of boulder county?
+fig_num = 4
 
-ggplot() +
-  # geom_sf(data = boulder.predict.0, 
-  #         fill = "gray80", color = "white") +
-  # geom_sf(data = boulder.predict.0, 
-  #         fill = "XXXXX", color = "XXXXXX") +
-  geom_sf(data = boulder.predict.0, 
-          aes(color = q5(price))) +
-  scale_color_manual(values = paletteMap) +
-  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
-  mapTheme()
+get_labels = function(
+  cut_breaks, round_digit = 0, bucket_diff=1, first_start_range=0, last_end_range=TRUE, input_end_range='', bucket_suffix='', bucket_prefix=''
+){
+  labels = 
+    cut_breaks %>% gsub(",", " to ", .) %>% 
+    str_sub(., 2, -2) %>% unique(.)
+  
+  list_str = function(l, remove=0){
+      format(round(as.numeric(l), digit=round_digit)-remove, big.mark=",")}
+  
+  for (i in seq(from=1,to=length(labels))){
+    bucket_range = labels[i] %>% str_split(., " to ")
+    
+    start_range = paste(bucket_prefix, list_str(bucket_range[[1]][1]))
+    end_range = paste(list_str(bucket_range[[1]][2], remove=bucket_diff), bucket_suffix)
+    
+    if (i == 1 & first_start_range != ''){
+      start_range = paste(bucket_prefix, list_str(first_start_range))}
+    if (i == length(labels) & input_end_range!=''){
+      end_range=paste(list_str(input_end_range), bucket_suffix)
+      last_end_range=TRUE
+      }
+    if (i == length(labels) & last_end_range==FALSE){end_range='+'}
+    
+    bucket = paste(
+        start_range, 
+        'to', 
+        end_range) %>% str_trim()
+    labels[i] = bucket}
+    
+  return(labels)
+  }
+
+
+plot_vari_spec = function(
+  focus_sf  = boulder.predict.0,
+  variable  = "price",
+  qbreaks   = q5(boulder.predict.0, "price"),
+  bucket_diff = 1,
+  title     = "Housing Price Variable", 
+  subtitle  = "",
+  legend_nm = "price",
+  caption   = "",
+  brewer_colors = 'Spectral',
+  round_digit = 0,
+  last_end_range = TRUE,
+  input_end_range = '',
+  bucket_suffix = '',
+  buff_col = 'red',
+  col_rev = FALSE,
+  first_start_range = 0
+){
+
+cutting_field = function(var_field, var_breaks){return(var_field %>% cut(., breaks = var_breaks, dig.lab=10, include.lowest = TRUE))}
+
+focus_sf$cut_field = cutting_field(focus_sf[[variable]], qbreaks)
+  
+cut_breaks = sapply(focus_sf$cut_field, function(brk) brk %>% levels())
+
+labels = get_labels(
+  cut_breaks, 
+  round_digit = round_digit, bucket_diff = bucket_diff, 
+  last_end_range = last_end_range, first_start_range = first_start_range, 
+  input_end_range = input_end_range, bucket_suffix = bucket_suffix)
+
+breaks_amount = length(qbreaks)-1
+col_vals = brewer.pal(breaks_amount, name = brewer_colors)
+
+if (col_rev==TRUE){col_vals=rev(col_vals)}
+
+return(
+ggplot()+
+  # geom_sf(data = EB.all, fill=alpha('grey50', .5), color=alpha('grey50', .5)) + 
+  # geom_sf(data = EB.back_water, fill=alpha('cornflowerblue', .5), color='transparent') + 
+  # geom_sf(data  = EB.cities, fill='grey90')+
+  geom_sf(
+    data  = focus_sf, 
+    aes(fill = cut_field), 
+    color='grey50') +
+  scale_fill_manual(
+    values = col_vals,
+    labels = labels, name = legend_nm) +
+  # geom_sf(
+  #   data=BART.buffers.TOD, fill='transparent', 
+  #   color=alpha(buff_col, alpha=.75), lwd=.75) +
+  # geom_sf(
+  #   data=BART.stops, fill='white',
+  #   color='grey30', shape=21) + 
+  # geom_text(
+  #   data=EB.labels, check_overlap=TRUE,
+  #   size = 3.5, fontface='bold', color='black',
+  #   aes(x=lon,y=lat, label=label)) + 
+  labs(title    = title, 
+       subtitle = subtitle,
+       caption  = caption) +
+  guides(fill = guide_legend(title.position="bottom", 
+                             title.hjust = 0.5, title.vjust = 0)) + 
+  theme(legend.position = "bottom",
+        legend.spacing.x = unit(.1, 'in')) +
+  # facet_wrap(~year)+
+  mapTheme() + plot_limits()
+)}
+
+################
+
+sub_fig_num = 0
+
+variable  = "price"
+
+filt_sf = 
+  boulder.predict.0[
+    !is.na(boulder.predict.0[[variable]]) &
+      !is.infinite(boulder.predict.0[[variable]])
+                       ,]
+max_variable = max(filt_sf[[variable]])
+
+#breaks = c(0,25,50,100, 150, max_variable)
+breaks = seq(0, max_variable, length.out = 5)
+
+plot_vari_spec(
+  focus_sf  = filt_sf,
+  variable  = variable,
+  qbreaks   = breaks,
+  title     = glue("Figure {fig_num}.{sub_fig_num} Home Prices"), 
+  subtitle  = "",
+  caption   = "",
+  brewer_colors = 'OrRd',
+  legend_nm = "Home Price",
+  bucket_suffix = '  ',
+  input_end_range = '',
+  last_end_range = FALSE,
+  round_digit=0,
+  bucket_diff=1,
+  first_start_range=0
+)
+
+
+# ggplot() +
+#   # geom_sf(data = boulder.predict.0, 
+#   #         fill = "gray80", color = "white") +
+#   # geom_sf(data = boulder.predict.0, 
+#   #         fill = "XXXXX", color = "XXXXXX") +
+#   geom_sf(data = boulder.predict.0, 
+#           aes(color = q5(price))) +
+#   scale_color_manual(values = paletteMap) +
+#   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+#   mapTheme()
 
 
 ```
