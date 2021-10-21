@@ -31,7 +31,7 @@ library(tmap)
 library(tigris)
 library(stargazer)
 library(ggcorrplot)
-library(stringr)
+library(glue)
 
 mapTheme <- function(base_size = 12) {
   theme(

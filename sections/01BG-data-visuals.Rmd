@@ -102,14 +102,19 @@ Looking at interesting open data that we've integrated
 plot_colors= c(
   "blue", "green", "red", "orange"
 )
-toplim=max(boulder.predict.0$price)
 
-price_percentiles = ecdf(boulder.predict.0$price)
-if (price_percentiles(max(boulder.predict.0$price))==1){
-  toplim=max(
-    boulder.predict.0[
-      boulder.predict.0$price < toplim,
-      'price'] %>% st_drop_geometry(.))}
+ylim_num = max(boulder.predict.0$price)
+price_cut = 
+  boulder.predict.0$price[
+    boulder.predict.0$price<ylim_num]
+ylim = max(price_cut)
+
+# price_percentiles = ecdf(boulder.predict.0$price)
+# if (price_percentiles(max(boulder.predict.0$price))==1){
+#   toplim=max(
+#     boulder.predict.0[
+#       boulder.predict.0$price < toplim,
+#       'price'] %>% st_drop_geometry(.))}
 
 for (
   variable_number in seq(1,4, by=1)
@@ -117,66 +122,35 @@ for (
   plot_color = plot_colors[variable_number]
   variable_name = boulder.dv[variable_number]
   
-  ggplot(
-    data = boulder.predict.0,
-    aes(
-      x = boulder.predict.0[[variable_name]],
-      y = boulder.predict.0$price)) +
-  geom_point(size=2, shape=20) +
-  labs(title = "Figure 2.1: {}",
-       subtitle = "XXXXXXXXXXXX") +
-  geom_smooth(method = "lm", se=F,
-              colour = plot_color) +
-  xlab(variable_name) +
-  ylab("price") +
-  ylim(min(boulder.predict.0$price), toplim) + 
-  plotTheme()
+  fm = 
+  as.formula(paste(
+    'price', "~", variable_name, sep=""))
+  price_variable = lm(fm, data = boulder.predict.0)
+  coefficient = 
+    round(
+      price_variable$coefficients[variable_name][1], 2)
+  
+  scat_plot = 
+    ggplot(
+      data = boulder.predict.0,
+      aes(
+        x = boulder.predict.0[[variable_name]],
+        y = boulder.predict.0$price)) +
+    geom_point(size=2, shape=20) +
+    labs(title = 
+           glue("Figure 2.{variable_number}: {variable_name}"),
+         subtitle = glue("Coefficient = {coefficient}")
+         ) +
+    geom_smooth(method = "lm", se=F,
+                colour = plot_color) +
+    xlab(variable_name) +
+    ylab("price") +
+    ylim(min(boulder.predict.0$price), ylim) + 
+    plotTheme()
+  print(scat_plot)
 }
 
-variable_number=3
-plot_color = plot_colors[variable_number]
-variable_name = boulder.dv[variable_number]
-ggplot(
-    data = boulder.predict.0,
-    aes(
-      x = boulder.predict.0[[variable_name]],
-      y = boulder.predict.0$price)) +
-  geom_point(size=2, shape=20) +
-  labs(title = glue("Figure 2.{variable_number}: {variable_name}"),
-       # subtitle = "XXXXXXXXXXXX"
-       ) +
-  geom_smooth(method = "lm", se=F,
-              colour = plot_color) +
-  xlab(variable_name) +
-  ylab("price") +
-  ylim(min(boulder.predict.0$price), toplim) + 
-  plotTheme()
-# 
-#  
-# 
-# #2 variable 
-# 
-# ggplot(data = boulder.predict.0, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
-#   geom_point(size=2, shape=20)  +
-#   labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
-#   geom_smooth(method = "lm", se=F, colour = "green") +
-#   plotTheme()
-# 
-# #3 variable 
-# 
-# ggplot(data = boulder.predict.0, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
-#   geom_point(size=2, shape=20)  +
-#   labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
-#   geom_smooth(method = "lm", se=F, colour = "red") +
-#   plotTheme()
-# 
-# #4 variable 
-# 
-# ggplot(data = boulder.predict.0, aes(x = PREDICTOR VARIABLE, y = SalePrice)) +
-#   geom_point(size=2, shape=20)  +
-#   labs(title = "Figure 2.1: XXXXXXXXX", subtitle = "XXXXXXXXXXXX") +
-#   geom_smooth(method = "lm", se=F, colour = "orange") +
-#   plotTheme()
+
 
 ```
 
