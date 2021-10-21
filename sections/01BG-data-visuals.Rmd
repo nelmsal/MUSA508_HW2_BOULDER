@@ -142,11 +142,16 @@ plot_colors= c(
   "blue", "green", "red", "orange"
 )
 
+second_max = function(vector){
+  vector_mx = max(vector)
+  vector_cut = 
+  vector[
+    vector<vector_mx]
+  return(max(vector_cut))
+}
+
 ylim_num = max(boulder.predict.0$price)
-price_cut = 
-  boulder.predict.0$price[
-    boulder.predict.0$price<ylim_num]
-ylim = max(price_cut)
+ylim = second_max(boulder.predict.0$price)
 
 # price_percentiles = ecdf(boulder.predict.0$price)
 # if (price_percentiles(max(boulder.predict.0$price))==1){

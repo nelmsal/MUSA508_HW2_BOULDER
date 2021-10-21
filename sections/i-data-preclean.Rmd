@@ -93,6 +93,116 @@ ggplot() +
   plot_limits(poly.geometry= B.dupe)
 ```
 
+
+### i.5 boundaries 
+
+```{r bound}
+
+# CREATE ERASE FUNCTION
+st_erase <- function(x, y) {
+  st_difference(x, st_union(y))}
+
+state.cities = 
+  st_read('data/col_city_boundaries.geojson') %>%
+  st_transform(., col_crs) %>%
+  rename(
+    name = NAME10,
+    name_long = NAMELSAD10
+  ) %>% 
+  mutate(incorporated = 
+          ifelse(grepl('city', name_long), 'city',
+                 ifelse(grepl('town', name_long), 'town',
+                        ifelse(grepl('CDP', name_long), 'CDP',
+                               'TRUE'))))
+state.counties = 
+  st_read('data/col_county_boundaries.geojson') %>%
+  st_transform(., col_crs)
+
+
+state.bound = 
+  st_read('data/col_state_boundary.geojson') %>%
+  st_transform(., col_crs)
+
+state.cities = 
+  state.counties %>% select(LABEL, FULL, geometry) %>%
+      rename(name = LABEL, name_long = FULL) %>% 
+      mutate(
+        name_long = paste('Unincorporated', name_long, sep=" "),
+        name = paste(name, 'County', sep=" "),
+        incorporated = 'County'
+        ) %>%
+  st_erase(.,
+    state.cities) %>% select(name, name_long, incorporated, geometry) %>%
+  rbind(
+    .,
+    state.cities %>% select(name, name_long, incorporated, geometry)) %>%
+  st_sf() %>%
+  mutate(first_area = st_area(geometry))
+
+attributes(state.cities$first_area) = NULL
+
+
+boulder.county = state.counties %>% filter(COUNTY=="BOULDER")
+boulder.cities = 
+  st_intersection(
+    state.cities, 
+    boulder.county %>% st_union()) %>%
+  mutate(land_area = st_area(geometry)) %>%
+  filter((incorporated!='County')|grepl('Boulder', name_long))
+
+attributes(boulder.cities$land_area) = NULL
+
+boulder.cities = 
+  boulder.cities %>%
+  mutate(pct_bould = land_area/first_area) %>%
+  filter(pct_bould<=0.1) %>% select(-pct_bould)
+
+boulder.cities.labels = 
+  boulder.cities %>%
+  st_centroid(., of_largest_polygon = TRUE) %>% 
+  filter((incorporated!='County')) %>%
+  mutate(
+    lon = map_dbl(geometry, 
+                  ~st_centroid(.x, of_largest_polygon = TRUE)[[1]]),
+    lat = map_dbl(geometry, 
+                  ~st_centroid(.x, of_largest_polygon = TRUE)[[2]]),
+    size = 
+          ifelse(grepl('city', name_long), 2,
+                 ifelse(grepl('town', name_long), 1.5,
+                        ifelse(grepl('CDP', name_long), 0,
+                               0)))) %>% 
+  filter(size>0)
+
+second_max = function(vector){
+  vector_mx = max(vector)
+  vector_cut = 
+  vector[
+    vector<vector_mx]
+  return(max(vector_cut))
+}
+
+hist(boulder.cities$land_area[
+  boulder.cities$land_area<max(boulder.cities$land_area)], 
+     xlim=c(0, second_max(boulder.cities$land_area)), breaks=50)
+
+ggplot() + 
+  geom_sf(
+    data = boulder.cities, 
+    aes(fill=incorporated), 
+    color='transparent') + 
+  geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
+          lwd=.1, linetype = "dashed") + 
+  geom_sf(data = boulder.county, fill = 'transparent', color='black',
+          lwd=1) + 
+  geom_text(
+    data=boulder.cities.labels, check_overlap=TRUE,
+    size = ifelse(boulder.cities.labels$size==2,2.5,2), 
+    fontface='bold', color='black',
+    aes(x=lon,y=lat, label=name)) + mapTheme()
+
+```
+
+
 ### i.8 schools
 
 
