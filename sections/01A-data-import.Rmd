@@ -161,6 +161,7 @@ variables are one of these types:
 2.	amenities/public services (e.g. proximity to parks)
 3.	spatial structure (e.g. nearby prices)
 
+Split up the data between sales prices known, and the sales prices that are set to 0 to be predicted 
 
 ```{r price_dataset}
 
@@ -189,15 +190,6 @@ boulder.variables
 
 
 glimpse(boulder.data)
-
-```
-
-### 
-
-Split up the data between sales prices known, and the sales prices that are set to 0 to be predicted 
-
-```{r data partition}
-
 
 ```
 
