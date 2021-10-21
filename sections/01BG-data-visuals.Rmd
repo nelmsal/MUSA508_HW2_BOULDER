@@ -195,11 +195,30 @@ for (
 ## E.	Map of Dependent Variable (Sales Price)
 *Develop 1 map of your dependent variable (sale price)*
 
-Map of Dependent Variable - Housing Prices 
+### E.1 Map Setup
 
-```{r map of dependent variable}
+```{r map_setup}
 
-fig_num = 4
+
+plot_limits = function(
+  poly.geometry = EB.cities$geometry,
+  # buffer between plot's limits and the geometry 
+  # (in unit of geometry column)
+  buffer = 0
+){
+  # creates bounding box
+  poly.bbox =
+    poly.geometry %>% st_union() %>%
+    # buffers the geometry so the ultimate plot has margins
+    st_buffer(buffer) %>%
+    st_bbox()
+  return(
+    # returns the 'coord_sf' function which you can add to any plot
+    coord_sf(
+      xlim = c(poly.bbox['xmin'], poly.bbox['xmax']),
+      ylim = c(poly.bbox['ymin'], poly.bbox['ymax']),
+      crs = st_crs(poly.geometry)
+  ))}
 
 get_labels = function(
   cut_breaks, round_digit = 0, bucket_diff=1, first_start_range=0, last_end_range=TRUE, input_end_range='', bucket_suffix='', bucket_prefix=''
@@ -233,6 +252,7 @@ get_labels = function(
     
   return(labels)
   }
+
 
 
 plot_vari_spec = function(
@@ -301,10 +321,20 @@ ggplot()+
   theme(legend.position = "bottom",
         legend.spacing.x = unit(.1, 'in')) +
   # facet_wrap(~year)+
-  mapTheme() + plot_limits()
+  mapTheme() #+ plot_limits()
 )}
 
 ################
+```
+
+
+### E.2 Map of Dependent Variable - Housing Prices 
+
+```{r map of dependent variable}
+
+fig_num = 4
+
+
 
 sub_fig_num = 0
 
