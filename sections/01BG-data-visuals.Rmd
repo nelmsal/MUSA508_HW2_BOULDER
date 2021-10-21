@@ -142,15 +142,13 @@ for (
          subtitle = glue("Coefficient = {coefficient}")
          ) +
     geom_smooth(method = "lm", se=F,
-                colour = plot_color) +
+                color = plot_color) +
     xlab(variable_name) +
     ylab("price") +
     ylim(min(boulder.predict.0$price), ylim) + 
     plotTheme()
   print(scat_plot)
 }
-
-
 
 ```
 
@@ -165,10 +163,13 @@ Map of Dependent Variable - Housing Prices
 #maybe we can insert faded base map of boulder county?
 
 ggplot() +
-  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
-  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = boulder.predict.0, aes(colour = q5(SalePrice))) +
-  scale_colour_manual(values = paletteMap) +
+  # geom_sf(data = boulder.predict.0, 
+  #         fill = "gray80", color = "white") +
+  # geom_sf(data = boulder.predict.0, 
+  #         fill = "XXXXX", color = "XXXXXX") +
+  geom_sf(data = boulder.predict.0, 
+          aes(color = q5(price))) +
+  scale_color_manual(values = paletteMap) +
   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
   mapTheme()
 
@@ -184,41 +185,88 @@ Map of independent Variables - XXXX, XXXX, XXXX, XXXX
 
 #maybe we can insert faded base map of boulder county?
 
-#variable 1
-ggplot() +
-  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
-  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = boulder.predict.0, aes(colour = q5(XXXXXX))) +
-  scale_colour_manual(values = paletteMap) +
-  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
-  mapTheme()
 
-#variable 2
-ggplot() +
-  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
-  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = boulder.predict.0, aes(colour = q5(XXXXX))) +
-  scale_colour_manual(values = paletteMap) +
-  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
-  mapTheme()
 
-#variable 3
-ggplot() +
-  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
-  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = boulder.predict.0, aes(colour = q5(XXXX))) +
-  scale_colour_manual(values = paletteMap) +
-  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
-  mapTheme()
+for (
+  variable_number in seq(1,3, by=1)
+){
+  plot_color = plot_colors[variable_number]
+  variable_name = boulder.dv[variable_number]
+  
+  fm = 
+  as.formula(paste(
+    'price', "~", variable_name, sep=""))
+  price_variable = lm(fm, data = boulder.predict.0)
+  coefficient = 
+    round(
+      price_variable$coefficients[variable_name][1], 2)
+  
+  scat_plot = 
+    ggplot(
+      data = boulder.predict.0,
+      aes(
+        x = boulder.predict.0[[variable_name]],
+        y = boulder.predict.0$price)) +
+    geom_point(size=2, shape=20) +
+    labs(title = 
+           glue("Figure 2.{variable_number}: {variable_name}"),
+         subtitle = glue("Coefficient = {coefficient}")
+         ) +
+    geom_smooth(method = "lm", se=F,
+                color = plot_color) +
+    xlab(variable_name) +
+    ylab("price") +
+    ylim(min(boulder.predict.0$price), ylim) + 
+    plotTheme()
+  print(scat_plot)
+  
+  variable_map = 
+    ggplot() +
+    geom_sf(
+      data = boulder.predict.0, 
+      aes(color =
+        q5(boulder.predict.0[[variable_name]]))) +
+    scale_color_manual(values = paletteMap) +
+    labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+    mapTheme()
+  print(variable_map)
+}
 
-#variable 4
-ggplot() +
-  geom_sf(data = XXXX, fill = "gray80", colour = "white") +
-  geom_sf(data = XXXX, fill = "XXXXX", colour = "XXXXXX") +
-  geom_sf(data = boulder.predict.0, aes(colour = q5(XXXXX))) +
-  scale_colour_manual(values = paletteMap) +
-  labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
-  mapTheme()
+# #variable 1
+# ggplot() +
+#   geom_sf(data = XXXX, fill = "gray80", color = "white") +
+#   geom_sf(data = XXXX, fill = "XXXXX", color = "XXXXXX") +
+#   geom_sf(data = boulder.predict.0, aes(color = q5(XXXXXX))) +
+#   scale_color_manual(values = paletteMap) +
+#   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+#   mapTheme()
+# 
+# #variable 2
+# ggplot() +
+#   geom_sf(data = XXXX, fill = "gray80", color = "white") +
+#   geom_sf(data = XXXX, fill = "XXXXX", color = "XXXXXX") +
+#   geom_sf(data = boulder.predict.0, aes(color = q5(XXXXX))) +
+#   scale_color_manual(values = paletteMap) +
+#   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+#   mapTheme()
+# 
+# #variable 3
+# ggplot() +
+#   geom_sf(data = XXXX, fill = "gray80", color = "white") +
+#   geom_sf(data = XXXX, fill = "XXXXX", color = "XXXXXX") +
+#   geom_sf(data = boulder.predict.0, aes(color = q5(XXXX))) +
+#   scale_color_manual(values = paletteMap) +
+#   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+#   mapTheme()
+# 
+# #variable 4
+# ggplot() +
+#   geom_sf(data = XXXX, fill = "gray80", color = "white") +
+#   geom_sf(data = XXXX, fill = "XXXXX", color = "XXXXXX") +
+#   geom_sf(data = boulder.predict.0, aes(color = q5(XXXXX))) +
+#   scale_color_manual(values = paletteMap) +
+#   labs(title = "XXXXXXXX", subtitle = "XXXXXXX") +
+#   mapTheme()
 
 
 ```
