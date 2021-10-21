@@ -408,7 +408,7 @@ plot(mean_scatter_nhood$SalePrice.Predict, mean_scatter_nhood$SalePrice.APE, mai
 *and test your model’s generalizability. Is your model generalizable?*
 ```{r Testing Model's Generalizability with race or income with Tidycensus}
 
-
+Race, Income, etc....
 
 ```
 
