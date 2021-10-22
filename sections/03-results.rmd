@@ -7,8 +7,20 @@
 
 ```{r regression_run}
 
-fit <- lm(SalePrice ~ ., data = st_drop_geometry(boulder.predict.0) %>%
-             dplyr::select(SalePrice...........VARIABLES))
+select_v = function(sf, variable_names=c('price', boulder.dv)){
+  return(sf %>% st_drop_geometry(.) %>%
+             select(variable_names))}
+
+select_dv = function(sf, variable_names=boulder.dv){
+  return(sf %>% st_drop_geometry(.) %>%
+             select(variable_names))}
+
+fit = lm(
+  price ~ ., data =
+    boulder.predict.0 %>% select_v(.)
+          )
+print(summary(fit))
+
 ```
 
 
@@ -20,17 +32,20 @@ fit <- lm(SalePrice ~ ., data = st_drop_geometry(boulder.predict.0) %>%
 
 ```{r partition_train_test}
 
-
 #need the geometries in order to do the Moran's I test later, and to plot the points 
 
 #need to paste in the variable columns that balances factors for categories across the training and test sets. Ken mentions this in Chapter 3 of the textbook
 
-inTrain <- createDataPartition(
-              y = paste(boulder.predict.0$XXXX, boulder.predict.0$XXXX....), 
+inTrain = createDataPartition(
+              y = do.call(paste, c(
+                boulder.predict.0 %>% select_dv(.)
+                , sep=" ")), 
               p = .75, list = FALSE)
 
-boulder.training <- boulder.predict.0[inTrain,] 
-boulder.test <- boulder.predict.0[-inTrain,]  
+boulder.training  = boulder.predict.0[inTrain,]
+
+boulder.test      = boulder.predict.0[-inTrain,]  
+
 
 ```
 
@@ -39,14 +54,19 @@ boulder.test <- boulder.predict.0[-inTrain,]
 
 ```{r regression training}
 
-fit.training <- lm(salePrice~., data = st_drop_geometry(boulder.training)  %>% 
-                             dplyr::select(SalePrice, XXXXXX))
+variable_list = boulder.dv %>% sort() %>% list()
+variables_str = do.call(paste, c(boulder.dv %>% list(), collapse = "+"))
 
+fm_equation = as.formula(paste(dependent_variable, variables_str, sep="~"))
 
+print(fm_equation)
 
-stargazer(fit.training, type="text", digits=1, title="Table 2: Boulder Trainign Data Regression Output", out = "Training LM.txt")
+fit.training =lm(fm_equation, data = boulder.training %>% select_v(.))
 
-
+stargazer(
+  fit.training, type="text", digits=1, 
+  title="Table 2: Boulder Training Data Regression Output", 
+  out = "results/Training_LM.txt")
 
 boulder.test <-
   boulder.test %>%
@@ -84,14 +104,17 @@ Comparing mean average error of K-fold output with our model above that we train
 
 ```{r k-fold cross-validation}
 
-fitControl <- trainControl(method = "cv", number = 100)
+fitControl <- trainControl(
+  method = "cv", 
+  number = 100)
+
 set.seed(825)
 
 
-fit.cv <- 
-  train(SalePrice ~ ., data = st_drop_geometry(boulder.predict) %>% 
-                                dplyr::select(SalePrice, XXXXXXXXX), 
-     method = "lm", trControl = fitControl, na.action = na.pass)
+fit.cv =
+  train(price ~ .,
+    data = boulder.training %>% select_v(.),
+    method = "lm", trControl = fitControl, na.action = na.pass)
 
 
 fit.cv
@@ -117,14 +140,21 @@ stargazer(fit.training, type="text", digits=1, title="Table 2: Boulder Training 
 
 ```{r Table of MAE and MAPE, message=FALSE, warning=FALSE}
 
+training.results = 
+  data.frame(
+    fm = c()
+    
+  )
+
 fit.cv.predict.0 <-
   boulder.predict.0 %>%
   mutate(Regression = "Baseline Regression",
-         SalePrice.Predict = predict(fit.cv, boulder.predict), 
-         SalePrice.Error = SalePrice.Predict - SalePrice, 
+         SalePrice.Predict  = predict(fit.cv, boulder.predict), 
+         SalePrice.Error    = SalePrice.Predict - SalePrice, 
          SalePrice.AbsError = abs(SalePrice.Predict - SalePrice), 
-         SalePrice.APE = SalePrice.AbsError / SalePrice) %>%  
-  filter(SalePrice < 5000000) 
+         SalePrice.APE      = SalePrice.AbsError / SalePrice) %>%  
+  filter(SalePrice < 5000000)
+
 fold75 <- fit.cv$control$indexOut$Resample075
 reg75 <- fit.cv.predict.0[fold75,c("SalePrice", "SalePrice.Predict")]
 reg75.test <-
@@ -133,15 +163,22 @@ reg75.test <-
          SalePrice.AbsError = abs(SalePrice.Predict - SalePrice), 
          SalePrice.APE = SalePrice.AbsError / SalePrice) %>% 
   filter(SalePrice < 5000000) 
+
 fit.cv.rs.min <- fit.cv$resample[75,]
 fit.cv.rs.min$MAPE <- mean(reg75.test$SalePrice.APE)
+
+
 round_df <- function(x, digits) {
     numeric_columns <- sapply(x, mode) == 'numeric'
     x[numeric_columns] <-  round(x[numeric_columns], digits)
     x
 }
-fit.cv.rs.min <- round_df(reg.cv.rs.min, 2)
+
+fit.cv.rs.min <- round_df(fit.cv.rs.min, 2)
+
 library(kableExtra)
+
+
 fit.cv.rs.min <- fit.cv$resample[75,]
 fit.cv.rs.min %>%                     
   gather(Variable, Value) %>%

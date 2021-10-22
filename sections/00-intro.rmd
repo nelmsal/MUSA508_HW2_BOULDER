@@ -38,6 +38,7 @@ library(patchwork)
 library(scales)
 library(kableExtra)
 library(ggplot2)
+library(caret)
 
 library(tidycensus)
 library(sf)
