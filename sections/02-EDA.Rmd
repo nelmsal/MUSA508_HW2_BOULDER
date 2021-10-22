@@ -14,6 +14,8 @@ options(tigris_class = "sf")
 ```
 
 
+# 2. Exploratory Data Analysis 
+
 ## B.	Table of Summary Statistics
 *Present a table of summary statistics with variable descriptions.*
 
@@ -33,7 +35,7 @@ boulder.dataSum = boulder.predict.0 %>%
 stargazer(boulder.dataSum, 
           type="text", digits=1, 
           title=table_title,
-          out = "Boulder Data.txt") 
+          out = "results/Boulder_Data.txt") 
   # kable(.
   #       # , col.names = c("Mean Variables","non-TOD","TOD","non-TOD","TOD"), align="lrrrr"
   #       ) %>%
@@ -138,6 +140,8 @@ Looking at interesting open data that we've integrated
 
 fig_num = 3
 
+dependent_variable = 'price'
+
 plot_colors= c(
   "blue", "green", "red", "orange"
 )
@@ -165,10 +169,9 @@ for (
 ){
   plot_color = plot_colors[variable_number]
   variable_name = boulder.dv[variable_number]
+  fm_equation = paste(dependent_variable, "~", variable_name, sep="")
   
-  fm = 
-  as.formula(paste(
-    'price', "~", variable_name, sep=""))
+  fm = as.formula(fm_equation)
   price_variable = lm(fm, data = boulder.predict.0)
   coefficient = 
     round(
@@ -183,7 +186,7 @@ for (
     geom_point(size=2, shape=20) +
     labs(title = 
            glue("Figure {fig_num}.{variable_number}: {variable_name}"),
-         subtitle = glue("Coefficient = {coefficient}")
+         subtitle = glue("{fm_equation} Coefficient = {coefficient}")
          ) +
     geom_smooth(method = "lm", se=F,
                 color = plot_color) +

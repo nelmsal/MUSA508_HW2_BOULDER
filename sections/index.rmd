@@ -38,16 +38,13 @@ options(tigris_class = "sf")
 # 1. Data
 
 
-```{r child = '01A-data-import.Rmd'}
-```
-
-```{r child = '01BG-data-visuals.Rmd'}
+```{r child = '01-data.Rmd'}
 ```
 
 -------------------------------
 # 2.	Methods
 
-```{r child = '02-methods.Rmd'}
+```{r child = '02-EDA.Rmd'}
 ```
 
 -------------------------------
