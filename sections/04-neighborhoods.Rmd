@@ -1,0 +1,199 @@
+
+# 4. Neighborhood Analysis
+
+## A. Accounting for Spatial Lag
+
+### 1. Set-Up
+```{r Spatial Lag}
+library(knitr)
+library(kableExtra)
+library(scales)
+
+coords <- st_coordinates(boulder.predict)
+neighborList <- knn2nb(knearneigh(coords, 5)) 
+
+spatialWeights <- nb2listw(neighborList, style="W") 
+boulder.predict$lagPrice <- lag.listw(spatialWeights, boulder.predict$price)
+
+coordinates.test <-  st_coordinates(boulder.test)
+neighborList.test <- knn2nb(knearneigh(coordinates.test, 5))
+spatialWeights.test <- nb2listw(neighborList.test, style="W")
+
+```
+### 2. Plot
+
+```{r Plotting of Spatial Lag }
+
+
+boulder.test %>%                
+  mutate(lagPriceError = lag.listw(spatialWeights.test, price.error)) %>%  
+  ggplot(aes(lagPriceError, price)) +
+  geom_point() +
+  stat_smooth(aes(lagPriceError, price), 
+             method = "lm", se = FALSE, size = 1, colour="#FA7800")+
+  labs(title = "Figure XXX: Spatial Lag of Price Errors") +
+  plotTheme() + theme(plot.title = element_text(size = 18, colour = "XXXX")) 
+
+
+```
+
+
+### 3. Moran's I
+
+```{r Morans I}
+
+BouldermoranTest <- moran.mc(boulder.test$price.error,
+                      spatialWeights.test, nsim = 999)
+
+
+ggplot(as.data.frame(BouldermoranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
+  geom_histogram(binwidth = 0.01) +
+  geom_vline(aes(xintercept = BouldermoranTest$statistic), colour = "#FA7800",size=1) +
+  scale_x_continuous(limits = c(-1, 1)) +
+  labs(title="Figure XX: Observed and Permuted Moran's I",
+       subtitle= "Observed Moran's I in orange",
+       x="Moran's I",
+       y="Count") +
+  plotTheme()
+```
+
+
+## B. Accounting for Neighborhoods
+
+### 1. Accounting for Neighbors Variance
+Map of predicted Values
+*Provide a map of your predicted values for where ‘toPredict’ is both 0 and 1.*
+
+```{r neighbors variance into the Regression}
+
+
+#neighborhood regression
+reg.nhood <- lm(price ~ ., data = as.data.frame(boulder.train) %>% 
+                                 dplyr::select(neighborhood, price, XXXXXXXXXXxx))
+
+boulder.test.nhood <-
+  boulder.test %>%
+  mutate(regression = "neighbors Effects",
+         price.predict = predict(reg.nhood, boulder.test), 
+         price.error = price - price.predict,       
+         price.abserror = abs(price - price.predict), 
+         price.ape = (abs(price - price.predict)) / price)%>% 
+  filter(price < 5000000)
+
+
+
+
+bothRegressions <-
+  rbind(
+    dplyr::select(boulder.test, starts_with("price"), Regression, neighborhood) %>%
+      mutate(lagPriceError = lag.listw(spatialWeights.test, price.error)),
+    dplyr::select(boulder.test.nhood, starts_with("price"), Regression, neighborhood) %>%
+      mutate(lagPriceError = lag.listw(spatialWeights.test, price.error)))   
+
+
+st_drop_geometry(bothRegressions) %>%
+  gather(Variable, Value, -Regression, -neighborhood) %>%
+  filter(Variable == "price.abserror" | Variable == "price.ape") %>%
+  group_by(Regression, Variable) %>%
+    summarize(meanValue = mean(Value, na.rm = T)) %>%
+    spread(Variable, meanValue) %>%
+    kable(caption = "Table XX: neighbors Effect on Error")
+
+
+```
+
+### 2. Map of Preducted Values by Neighborhood
+
+```{r map of predicted values}
+
+nhood.pricespredicted <- boulder.data %>%
+  mutate(
+    prediction = predict(reg.nhood, boulder.data))
+
+ggplot() +
+  geom_sf(data = XXXX, fill = "gray90", colour = "white") +
+    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXXX") +
+  geom_sf(data = nhood.procespredicted, aes(colour = q5(prediction))) +
+ scale_colour_manual(values = palette5) +
+ labs(title = "Figure XXX: predicted House Price Values with Neighborhood Variance", subtitle = "Boulder County, CO") +
+ # facet_wrap(~toPredict) +
+  mapTheme()
+
+```
+
+
+### 3. Accounting for neighborhood variance 
+
+```{r Plotting the predicted prices from the new neighbors variance regression }
+
+bothRegressions %>%
+  dplyr::select(price.predict, price, Regression) %>%
+    ggplot(aes(price, price.predict)) +
+  geom_point() +
+  stat_smooth(aes(price, price),
+             method = "lm", se = FALSE, size = 1, colour="#FA7800") +
+  stat_smooth(aes(price.predict, price),
+              method = "lm", se = FALSE, size = 1, colour="#25CB10") +
+  facet_wrap(~Regression) +
+  labs(title="Figure 10.1: predicted Sale Price and Observed Price",
+       subtitle="Orange line represents a perfect prediction; Green line represents prediction") +
+  plotTheme() + theme(plot.title = element_text(size = 18, colour = "black"))
+
+```
+
+### 4. Visualizing MAPE by Neighborhoods
+#### A. Map
+
+```{r Test Set predictions, MAPE of neighbors}
+
+names(bothRegressions)[names(bothRegressions) == "OUR NEGHBORHOOD NAME"] <- "Our neighbors values name"
+
+
+st_drop_geometry(bothRegressions) %>%
+  group_by(Regression, neighborhood) %>%
+  summarise(mean.MAPE = mean(price.ape, na.rm = T)) %>%
+  ungroup() %>%
+  left_join(neighborhood) %>%
+    st_as_sf() %>%
+   ggplot() +
+    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXX") +
+      geom_sf(colour = "gray", aes(fill = q5(mean.MAPE))) +
+      scale_fill_manual(values = paletteMap) +
+  labs(title = "Figure XXX: MAPE by neighbors") +
+      mapTheme()
+
+```
+
+#### B.	Plot
+*Provide a scatterplot plot of MAPE by neighbors as a function of mean price by neighbors.*
+
+
+```{r  scatterplot plot of MAPE by neighbors as a function of mean price by neighbors}
+
+scatter_nhood <-
+    boulder.test.nhood %>%
+    group_by(neighborhood) %>%
+    dplyr::select(neighborhood, price.ape, price.predict)
+
+
+mean_scatter_nhood <-
+  scatter_nhood %>%
+  group_by(neighborhood) %>%
+  summarise_at(vars("price.ape", "price.predict"), mean)
+
+
+plot(mean_scatter_nhood$price.predict, mean_scatter_nhood$price.ape, main="Figure XXX: MAPE by neighbors and Mean Price by neighbors", xlab="Mean Price by neighbors", ylab="MAPE by neighbors") +
+  plotTheme()
+
+
+```
+
+## C.	Split City
+*Using tidycensus, split your city into two groups (perhaps by race or income)*
+*and test your model’s generalizability. Is your model generalizable?*
+```{r Testing Model's Generalizability with race or income with Tidycensus}
+
+Race, Income, etc....
+
+```
+

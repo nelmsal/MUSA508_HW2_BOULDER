@@ -25,21 +25,22 @@ Will be using the topredict=0 homes for this Exploratory Data Analysis
 
 ```{r summary,  results='asis'}
 
+select_v = function(sf, variable_names=c('price', boulder.iv)){
+  return(sf %>% st_drop_geometry(.) %>%
+             select(variable_names))}
+
+select_iv = function(sf, variable_names=boulder.iv){
+  return(sf %>% st_drop_geometry(.) %>%
+             select(variable_names))}
+
 table_num = 1
 table_title = glue("Table {table_num}: Summary Statistics for Boulder County")
 
-boulder.dataSum = boulder.predict.0 %>%
-  dplyr:: select(c(price, boulder.dv)) %>%
-  st_drop_geometry(.)
 
-stargazer(boulder.dataSum, 
+stargazer(boulder.predict.0 %>% select_v(.), 
           type="text", digits=1, 
           title=table_title,
           out = "results/Boulder_Data.txt") 
-  # kable(.
-  #       # , col.names = c("Mean Variables","non-TOD","TOD","non-TOD","TOD"), align="lrrrr"
-  #       ) %>%
-  #     kable_styling()
 
 
 ```
@@ -59,10 +60,10 @@ hist(
   xlab=variable_name)
 
 for (
-  variable_number in seq(1,length(boulder.dv), by=1)
+  variable_number in seq(1,length(boulder.iv), by=1)
 ){
   #plot_color = plot_colors[variable_number]
-  variable_name = boulder.dv[variable_number]
+  variable_name = boulder.iv[variable_number]
   hist(
     boulder.predict.0[[variable_name]], 
     breaks=50, 
@@ -85,7 +86,7 @@ fig_num = 2
 
 corrPlotVariables = 
   boulder.predict.0 %>%
-  select(boulder.dv) %>% st_drop_geometry(.) %>%
+  select(boulder.iv) %>% st_drop_geometry(.) %>%
   select_if(., is.numeric)
 
 ggcorrplot(
@@ -96,34 +97,6 @@ ggcorrplot(
   insig = "blank") +  
     labs(
       title = glue("Figure {fig_num}: Boulder Housing Correlation across Numeric Variables")) 
-
-```
-
-
-### C.2.A log?
-
-```{r log transformed}
-
-# dataset$variable <- log(var)
-# 
-# 
-# dataset$variable <- Log(1+var)) --> #needed if there are any zeros in the dataset
-
-```
-
-
-### C.2.B log?
-
-```{r histograms of log transformed}
-# 
-# hist(lnvariables, breaks=50)
-# hist(lnvariables, breaks=50)
-# .
-# .
-# .
-# hist(lnvariables, breaks=50)
-# 
-# #if any variables still do not appear normal after log transform, then we will have to deicde if keeping them in or not. Obviously improtant variables (such as dependnet variable ho
 
 ```
 
@@ -168,7 +141,7 @@ for (
   variable_number in seq(1,4, by=1)
 ){
   plot_color = plot_colors[variable_number]
-  variable_name = boulder.dv[variable_number]
+  variable_name = boulder.iv[variable_number]
   fm_equation = paste(dependent_variable, "~", variable_name, sep="")
   
   fm = as.formula(fm_equation)
@@ -203,7 +176,7 @@ for (
 ## E.	Map of Dependent Variable (Sales Price)
 *Develop 1 map of your dependent variable (sale price)*
 
-### E.1 Map Setup
+### 1. Map Setup
 
 ```{r map_setup}
 
@@ -336,7 +309,7 @@ ggplot()+
 ```
 
 
-### E.2 Map of Dependent Variable - Housing Prices 
+### 2. Map of Dependent Variable - Housing Prices 
 
 ```{r map of dependent variable}
 
@@ -405,7 +378,7 @@ for (
   variable_number in seq(1,3, by=1)
 ){
   plot_color = plot_colors[variable_number]
-  variable_name = boulder.dv[variable_number]
+  variable_name = boulder.iv[variable_number]
   
   fm = 
   as.formula(paste(

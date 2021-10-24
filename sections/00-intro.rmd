@@ -1,19 +1,4 @@
 
-
-```{r setup, include=FALSE}
-library(bookdown)
-knitr::opts_chunk$set(
-  echo=TRUE,
-  include=TRUE,
-  warning=FALSE,
-  messages=FALSE,
-  fig.width = 8,
-  fig.keep = 'all',
-  collapse=TRUE
-  )
-options(tigris_class = "sf")
-```
-
 # 0. Introduction
 
 *What is the purpose of this project?*
@@ -26,7 +11,7 @@ Boulder County - population growing, Zillow wants us adjust their pricing algori
 
 What are some aspects of Boulder County
 
-```{r setup, include=FALSE}
+```{r import_libraries, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 options(scipen=999)
@@ -49,6 +34,7 @@ library(tigris)
 library(stargazer)
 library(ggcorrplot)
 library(glue)
+library(rvest)
 
 mapTheme <- function(base_size = 12) {
   theme(

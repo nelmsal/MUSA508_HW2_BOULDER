@@ -54,27 +54,27 @@ boulder.parcel = st_read(parcel_path) %>%
 attributes(boulder.parcel$area) = NULL
 boulder.parcel = boulder.parcel %>% filter(area>0)
 
-# address_path =
-#   "data/Boulder_AddressPts_20211009.geojson"
-# boulder.address = st_read(address_path)%>%
-#   st_transform(., col_crs)
-# 
-# acct_path =
-#   "data/Account_Parcels.csv"
-# boulder.parcel.acct = read.csv(acct_path)
-# 
-# build_path =
-#   "data/Buildings.csv"
-# boulder.parcel.build = read.csv(build_path)
-# 
-# land_path =
-#   "data/Land.csv"
-# boulder.parcel.land = read.csv(land_path)
-# 
-# owner_path =
-#   "data/Owner_Address.csv"
-# boulder.parcel.owner = read.csv(owner_path)
-# 
+address_path =
+  "data/Boulder_AddressPts_20211009.geojson"
+boulder.address = st_read(address_path)%>%
+  st_transform(., col_crs)
+
+acct_path =
+  "data/Account_Parcels.csv"
+boulder.parcel.acct = read.csv(acct_path)
+
+build_path =
+  "data/Buildings.csv"
+boulder.parcel.build = read.csv(build_path)
+
+land_path =
+  "data/Land.csv"
+boulder.parcel.land = read.csv(land_path)
+
+owner_path =
+  "data/Owner_Address.csv"
+boulder.parcel.owner = read.csv(owner_path)
+
 # permits =
 #   "data/Permits.csv"
 # B.build = read.csv(build_path)
@@ -112,7 +112,7 @@ boulder.parcel[(boulder.parcel$APN == "157505036006")&
 boulder.county = boulder.parcel %>% st_union(.)
 
 ggplot() +
-  geom_sf(data=boulder.county, lwd=.1, color='lightgrey') 
+  geom_sf(data=boulder.county, lwd=.1, color='lightgrey')
 +
   geom_sf(data=boulder.parcel, lwd=.1) +
   geom_sf(data=B.dupe,
@@ -187,7 +187,8 @@ boulder.data = boulder.sales[,c(
   'geometry'
   )]
 
-boulder.dv = boulder.variables[!boulder.variables$var_num %in% c(0,99), 'var_name']
+boulder.iv = boulder.variables[
+  !boulder.variables$var_num %in% c(0,99), 'var_name']
 
 boulder.predict.0 <- boulder.data %>%
   filter(.,toPredict == 0)
@@ -195,7 +196,6 @@ boulder.predict.1 <- boulder.data %>%
   filter(., toPredict == 1)
 
 boulder.variables
-
 
 glimpse(boulder.data)
 

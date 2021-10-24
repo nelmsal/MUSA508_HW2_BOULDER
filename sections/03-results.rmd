@@ -1,36 +1,29 @@
 # 3.	Results 
 
-## A.	Interpret Results
+## A.	Method
 *Briefly interpret each in the context of the Zillow use case*
 
-### 3.A.1 Run the Regression
-
-```{r regression_run}
-
-select_v = function(sf, variable_names=c('price', boulder.dv)){
-  return(sf %>% st_drop_geometry(.) %>%
-             select(variable_names))}
-
-select_dv = function(sf, variable_names=boulder.dv){
-  return(sf %>% st_drop_geometry(.) %>%
-             select(variable_names))}
-
-fit = lm(
-  price ~ ., data =
-    boulder.predict.0 %>% select_v(.)
-          )
-print(summary(fit))
-
-```
+### 1. Interpret Results
 
 
-## 3.B.	Partition Training & Test Sets
-*Split the ‘toPredict’ == 0 into a separate training and test set using a 75/25 split.*
+## B.	Partition Training & Test Sets
 
-### 3.B.1 Partition up Test and Train datasets
+Before developing the model, this study splits the dataset of known home prices [boulder.predict.0] before training a linear model so we can test that model on unbiased data. Specifically, 75% of the known home prices are randomly split into the training dataset [boulder.train] -- while 25% goes into an unbiased test set [boulder.test].
 
 
 ```{r partition_train_test}
+
+# produces:
+#   boulder.train
+#   boulder.test
+
+select_v = function(sf, variable_names=c('price', boulder.iv)){
+  return(sf %>% st_drop_geometry(.) %>%
+             select(variable_names))}
+
+select_iv = function(sf, variable_names=boulder.iv){
+  return(sf %>% st_drop_geometry(.) %>%
+             select(variable_names))}
 
 #need the geometries in order to do the Moran's I test later, and to plot the points 
 
@@ -38,66 +31,118 @@ print(summary(fit))
 
 inTrain = createDataPartition(
               y = do.call(paste, c(
-                boulder.predict.0 %>% select_dv(.)
+                boulder.predict.0 %>% select_iv(.)
                 , sep=" ")), 
               p = .75, list = FALSE)
 
-boulder.training  = boulder.predict.0[inTrain,]
+boulder.train = boulder.predict.0[inTrain,]
 
-boulder.test      = boulder.predict.0[-inTrain,]  
+boulder.test  = boulder.predict.0[-inTrain,]  
 
 
 ```
 
 
-### 3.B.2 Testing & Plotting Regression
+## C. Train Model 
 
-```{r regression training}
+With a training set, the study can now build its initial training linear model [boulder.train.lm] based on the independent variables constructed in Section 1.
 
-variable_list = boulder.dv %>% sort() %>% list()
-variables_str = do.call(paste, c(boulder.dv %>% list(), collapse = "+"))
+### 1. Fitting a Linear Model
 
-fm_equation = as.formula(paste(dependent_variable, variables_str, sep="~"))
+```{r train_lm}
+
+
+independent_variables = boulder.iv %>% sort() %>% list()
+
+variables_str = 
+  do.call(paste, c(boulder.iv %>% list(), collapse = "+"))
+
+fm_equation = as.formula(paste(
+  dependent_variable, variables_str, sep="~"))
 
 print(fm_equation)
 
-fit.training =lm(fm_equation, data = boulder.training %>% select_v(.))
+boulder.train.lm = 
+  lm(
+    fm_equation, 
+    data = boulder.train %>% select_v(.))
+
+
+```
+
+
+### 2. Results
+
+#### A. Summary Table
+
+``` {r train_results}
 
 stargazer(
-  fit.training, type="text", digits=1, 
+  boulder.train.lm, type="text", digits=1, 
   title="Table 2: Boulder Training Data Regression Output", 
   out = "results/Training_LM.txt")
 
-boulder.test <-
+boulder.test =
   boulder.test %>%
-  mutate(Regression = " Boulder Test Regression",
-         SalePrice.Predict = predict(fit.training, boulder.test), 
-         SalePrice.Error = SalePrice.Predict - SalePrice, 
-         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice), 
-         SalePrice.APE = SalePrice.AbsError / SalePrice) %>%   
-  filter(SalePrice < 5000000) 
+  mutate(
+    regression = "Boulder Test Regression",
+     price.predict = predict(boulder.train.lm, boulder.test), 
+     price.error = price.predict - price, 
+     price.abserror = abs(price.predict - price), 
+     price.ape = price.abserror / price
+    ) 
+  #   %>%   
+  # filter(price < 5000000) 
+
+
+# fit = lm(
+#   price ~ ., data =
+#     boulder.predict.0 %>% select_v(.)
+#           )
+# print(summary(fit))
+
+
+
+```
+
+
+
+#### B. Errors Table
+*Provide a polished table of mean absolute error and MAPE for a single test set.*
+*Check out the “kable” function for markdown to create nice tables.*
+
+
+```{r Table of MAE and MAPE, message=FALSE, warning=FALSE}
 
 #Mean Error and APE 
 
-mean(boulder.test$SalePrice.AbsError, na.rm = T)
-mean(boulder.test$SalePrice.APE, na.rm = T)
-mean(boulder.test$SalePrice.Predict, na.rm = T)
+mean(boulder.test$price.abserror, na.rm = T)
+mean(boulder.test$price.ape, na.rm = T)
+mean(boulder.test$price.predict, na.rm = T)
+
+
 
 
 ggplot(data = boulder.test) +
-  geom_point(aes(x = SalePrice, y = SalePrice.AbsError)) +
+  geom_point(aes(x = price, y = price.abserror)) +
   labs(title = "Figure XX Observed Sale Price and Absolute Error") +
   plotTheme()
 
 ggplot(data = boulder.test) +
-  geom_point(aes(x = SalePrice, y = SalePrice.APE)) +
+  geom_point(aes(x = price, y = price.ape)) +
   labs(title = "Figure XX: Observed Sale Price with Absolute Percent Error") +
   plotTheme()
 
 ```
 
-#### 3.B.2.A K-Fold Test 
-**where should this go?**
+
+
+## D.	Test Model
+*Provide the results of your cross-validation tests. This includes mean and standard deviation MAE.*
+
+*Do 100 folds and plot your cross-validation MAE as a histogram.*
+
+### 1. K-Fold Cross-Validation Test 
 
 Testing for generalization 
 Comparing mean average error of K-fold output with our model above that we trained 
@@ -113,7 +158,7 @@ set.seed(825)
 
 fit.cv =
   train(price ~ .,
-    data = boulder.training %>% select_v(.),
+    data = boulder.train %>% select_v(.),
     method = "lm", trControl = fitControl, na.action = na.pass)
 
 
@@ -122,23 +167,8 @@ fit.cv
 
 ```
 
-## C.	Table of lm Summary (Training)
-*Provide a polished table of your (training set) lm summary results (coefficients, R2 etc).*
+```{r test_cv}
 
-```{r regression table}
-
-stargazer(fit.training, type="text", digits=1, title="Table 2: Boulder Training Data Regression Output", out = "Training LM.txt")
-
-```
-
-## D.	Table of MAE & MAPE (Test)
-*Provide a polished table of mean absolute error and MAPE for a single test set.*
-*Check out the “kable” function for markdown to create nice tables.*
-
-
-##This one was hard for me to figure out for a single test set, so I used a previous year's as a reference 
-
-```{r Table of MAE and MAPE, message=FALSE, warning=FALSE}
 
 training.results = 
   data.frame(
@@ -148,24 +178,24 @@ training.results =
 
 fit.cv.predict.0 <-
   boulder.predict.0 %>%
-  mutate(Regression = "Baseline Regression",
-         SalePrice.Predict  = predict(fit.cv, boulder.predict), 
-         SalePrice.Error    = SalePrice.Predict - SalePrice, 
-         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice), 
-         SalePrice.APE      = SalePrice.AbsError / SalePrice) %>%  
-  filter(SalePrice < 5000000)
+  mutate(regression = "Baseline Regression",
+         price.predict  = predict(fit.cv, boulder.predict), 
+         price.error    = price.predict - price, 
+         price.abserror = abs(price.predict - price), 
+         price.ape      = price.abserror / price) %>%  
+  filter(price < 5000000)
 
 fold75 <- fit.cv$control$indexOut$Resample075
-reg75 <- fit.cv.predict.0[fold75,c("SalePrice", "SalePrice.Predict")]
+reg75 <- fit.cv.predict.0[fold75,c("price", "price.predict")]
 reg75.test <-
   reg75 %>%
-  mutate(SalePrice.Error = SalePrice.Predict - SalePrice, 
-         SalePrice.AbsError = abs(SalePrice.Predict - SalePrice), 
-         SalePrice.APE = SalePrice.AbsError / SalePrice) %>% 
-  filter(SalePrice < 5000000) 
+  mutate(price.error = price.predict - price, 
+         price.abserror = abs(price.predict - price), 
+         price.ape = price.abserror / price) %>% 
+  filter(price < 5000000) 
 
 fit.cv.rs.min <- fit.cv$resample[75,]
-fit.cv.rs.min$MAPE <- mean(reg75.test$SalePrice.APE)
+fit.cv.rs.min$MAPE <- mean(reg75.test$price.ape)
 
 
 round_df <- function(x, digits) {
@@ -191,10 +221,7 @@ fit.cv.rs.min %>%
 
 ```
 
-
-
-## E.	Cross-Validation Test Results
-*Provide the results of your cross-validation tests. This includes mean and standard deviation MAE. Do 100 folds and plot your cross-validation MAE as a histogram.*
+### 2. Histogram of MAE
 
 ```{r histogram of MAE, message=FALSE, warning=FALSE}
 
@@ -207,13 +234,13 @@ ggplot(fit.cv$resample, aes(x=MAE)) +
 
 *Is your model generalized to new data?*
 
-## F.	Plot Predicted Prices
+## E. Plot Predicted Prices
 *Plot predicted prices as a function of observed prices*
 
 ```{r prediction_plot, message=FALSE, warning=FALSE}
 
-predictedprices <- boulderData %>%
-  mutate(prediction = predict(fit.cv, boulderData))
+predictedprices <- boulder.data %>%
+  mutate(prediction = predict(fit.cv, boulder.data))
 
 
 ggplot() +
@@ -221,7 +248,7 @@ ggplot() +
     geom_sf(data = XXXX, fill = "XXXX", colour = "XXXXX") +
   geom_sf(data = predictedprices, aes(colour = q5(prediction))) +
  scale_colour_manual(values = palette5) +
- labs(title = "Figure XXX: Predicted House Price Values", subtitle = "Boulder County, CO") +
+ labs(title = "Figure XXX: predicted House Price Values", subtitle = "Boulder County, CO") +
  # facet_wrap(~toPredict) +
   mapTheme()
 
@@ -230,12 +257,13 @@ ggplot() +
 
 ```
 
-## G.	Map of Residuals (Test)
+## F. Map Predictions
+
+### 1. Map of Residuals (Test)
 *1. Provide a map of your residuals for your test set*
 *2. Include a Moran’s I test*
 *3. Plot of the spatial lag in errors.*
 
-### 3.G.1 Map of Test Residuals
 ```{r Map of test set residuals}
 
 library(modelr)
@@ -243,7 +271,7 @@ library(modelr)
 boulder.test$resid <- 
   boulder.test %>%
   as_data_frame() %>%
-  add_residuals(., fit.training, var = "resid") %>%
+  add_residuals(., boulder.train.lm, var = "resid") %>%
   dplyr::select(resid, Folio) %>%
   pull(resid)
 
@@ -256,196 +284,6 @@ geom_sf(data = XXXX, fill = "gray90", colour = "XXX") +
  labs(title = "Figure XXX: Test Set Residual Errors", subtitle = "XXXXX") +
   mapTheme()
 
-
-```
-
-### 3.G.2 Spatial Lag in Errors 
-
-#### 3.G.2.A Set-Up
-```{r Spatial Lag}
-library(knitr)
-library(kableExtra)
-library(scales)
-
-coords <- st_coordinates(boulder.predict)
-neighborList <- knn2nb(knearneigh(coords, 5)) 
-
-spatialWeights <- nb2listw(neighborList, style="W") 
-boulder.predict$lagPrice <- lag.listw(spatialWeights, boulder.predict$SalePrice)
-
-coordinates.test <-  st_coordinates(boulder.test)
-neighborList.test <- knn2nb(knearneigh(coordinates.test, 5))
-spatialWeights.test <- nb2listw(neighborList.test, style="W")
-
-```
-#### 3.G.2.B Plot
-
-```{r Plotting of Spatial Lag }
-
-
-boulder.test %>%                
-  mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)) %>%  
-  ggplot(aes(lagPriceError, SalePrice)) +
-  geom_point() +
-  stat_smooth(aes(lagPriceError, SalePrice), 
-             method = "lm", se = FALSE, size = 1, colour="#FA7800")+
-  labs(title = "Figure XXX: Spatial Lag of Price Errors") +
-  plotTheme() + theme(plot.title = element_text(size = 18, colour = "XXXX")) 
-
-
-```
-
-### 3.G.3 Moran's I
-
-```{r Morans I}
-
-BouldermoranTest <- moran.mc(boulder.test$SalePrice.Error,
-                      spatialWeights.test, nsim = 999)
-
-
-ggplot(as.data.frame(BouldermoranTest$res[c(1:999)]), aes(moranTest$res[c(1:999)])) +
-  geom_histogram(binwidth = 0.01) +
-  geom_vline(aes(xintercept = BouldermoranTest$statistic), colour = "#FA7800",size=1) +
-  scale_x_continuous(limits = c(-1, 1)) +
-  labs(title="Figure XX: Observed and Permuted Moran's I",
-       subtitle= "Observed Moran's I in orange",
-       x="Moran's I",
-       y="Count") +
-  plotTheme()
-```
-## H.	Map of Predicted Values
-*Provide a map of your predicted values for where ‘toPredict’ is both 0 and 1.*
-
-```{r map of predicted values}
-
-nhood.pricespredicted <- boulderdata %>%
-  mutate(prediction = predict(reg.nhood, boulderdata))
-
-ggplot() +
-  geom_sf(data = XXXX, fill = "gray90", colour = "white") +
-    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXXX") +
-  geom_sf(data = nhood.procespredicted, aes(colour = q5(prediction))) +
- scale_colour_manual(values = palette5) +
- labs(title = "Figure XXX: Predicted House Price Values with Neighborhood Variance", subtitle = "Boulder County, CO") +
- # facet_wrap(~toPredict) +
-  mapTheme()
-
-```
-
-## I. Map of MAPE by neighbors (Test)
-*Using the test set predictions, provide a map of mean absolute percentage error (MAPE) by neighbors.*
-
-### I.1.A Accounting for neighbors variance 
-
-```{r neighbors variance into the Regression}
-
-
-#neighborhood regression
-reg.nhood <- lm(SalePrice ~ ., data = as.data.frame(boulder.training) %>% 
-                                 dplyr::select(neighborhood, SalePrice, XXXXXXXXXXxx))
-
-boulder.test.nhood <-
-  boulder.test %>%
-  mutate(Regression = "neighbors Effects",
-         SalePrice.Predict = predict(reg.nhood, boulder.test), 
-         SalePrice.Error = SalePrice - SalePrice.Predict,       
-         SalePrice.AbsError = abs(SalePrice - SalePrice.Predict), 
-         SalePrice.APE = (abs(SalePrice - SalePrice.Predict)) / SalePrice)%>% 
-  filter(SalePrice < 5000000)
-
-
-
-
-bothRegressions <-
-  rbind(
-    dplyr::select(boulder.test, starts_with("SalePrice"), Regression, neighborhood) %>%
-      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)),
-    dplyr::select(boulder.test.nhood, starts_with("SalePrice"), Regression, neighborhood) %>%
-      mutate(lagPriceError = lag.listw(spatialWeights.test, SalePrice.Error)))   
-
-
-st_drop_geometry(bothRegressions) %>%
-  gather(Variable, Value, -Regression, -neighborhood) %>%
-  filter(Variable == "SalePrice.AbsError" | Variable == "SalePrice.APE") %>%
-  group_by(Regression, Variable) %>%
-    summarize(meanValue = mean(Value, na.rm = T)) %>%
-    spread(Variable, meanValue) %>%
-    kable(caption = "Table XX: neighbors Effect on Error")
-
-
-```
-
-### I.1.A Accounting for neighborhood variance 
-
-```{r Plotting the predicted prices from the new neighbors variance regression }
-
-bothRegressions %>%
-  dplyr::select(SalePrice.Predict, SalePrice, Regression) %>%
-    ggplot(aes(SalePrice, SalePrice.Predict)) +
-  geom_point() +
-  stat_smooth(aes(SalePrice, SalePrice),
-             method = "lm", se = FALSE, size = 1, colour="#FA7800") +
-  stat_smooth(aes(SalePrice.Predict, SalePrice),
-              method = "lm", se = FALSE, size = 1, colour="#25CB10") +
-  facet_wrap(~Regression) +
-  labs(title="Figure 10.1: Predicted Sale Price and Observed Price",
-       subtitle="Orange line represents a perfect prediction; Green line represents prediction") +
-  plotTheme() + theme(plot.title = element_text(size = 18, colour = "black"))
-
-```
-
-I.2 Map of MAPE by neighbors
-
-```{r Test Set Predictions, MAPE of neighbors}
-
-names(bothRegressions)[names(bothRegressions) == "OUR NEGHBORHOOD NAME"] <- "Our neighbors values name"
-
-
-st_drop_geometry(bothRegressions) %>%
-  group_by(Regression, neighborhood) %>%
-  summarise(mean.MAPE = mean(SalePrice.APE, na.rm = T)) %>%
-  ungroup() %>%
-  left_join(neighborhood) %>%
-    st_as_sf() %>%
-   ggplot() +
-    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXX") +
-      geom_sf(colour = "gray", aes(fill = q5(mean.MAPE))) +
-      scale_fill_manual(values = paletteMap) +
-  labs(title = "Figure XXX: MAPE by neighbors") +
-      mapTheme()
-
-```
-
-## J.	Plot of MAPE by neighbors
-*Provide a scatterplot plot of MAPE by neighbors as a function of mean price by neighbors.*
-
-
-```{r  scatterplot plot of MAPE by neighbors as a function of mean price by neighbors}
-
-scatter_nhood <-
-    boulder.test.nhood %>%
-    group_by(neighborhood) %>%
-    dplyr::select(neighborhood, SalePrice.APE, SalePrice.Predict)
-
-
-mean_scatter_nhood <-
-  scatter_nhood %>%
-  group_by(neighborhood) %>%
-  summarise_at(vars("SalePrice.APE", "SalePrice.Predict"), mean)
-
-
-plot(mean_scatter_nhood$SalePrice.Predict, mean_scatter_nhood$SalePrice.APE, main="Figure XXX: MAPE by neighbors and Mean Price by neighbors", xlab="Mean Price by neighbors", ylab="MAPE by neighbors") +
-  plotTheme()
-
-
-```
-
-## K.	Split City
-*Using tidycensus, split your city into two groups (perhaps by race or income)*
-*and test your model’s generalizability. Is your model generalizable?*
-```{r Testing Model's Generalizability with race or income with Tidycensus}
-
-Race, Income, etc....
 
 ```
 

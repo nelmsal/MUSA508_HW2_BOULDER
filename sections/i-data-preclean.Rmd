@@ -58,39 +58,34 @@ boulder.parcel = boulder.parcel %>% filter(area>0)
 
 ```{r parcel_clean}
 
-OG_len = nrow(boulder.parcel%>% st_drop_geometry())
-APN_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., APN))
-ID_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., ID, APN))
-area_len = nrow(boulder.parcel[boulder.parcel$area>0,] %>% st_drop_geometry() )
-
-print(OG_len)
-print(OG_len-APN_len)
-print(OG_len-ID_len)
-print(OG_len-area_len)
-
-# boulder.parcel[(boulder.parcel$area<=0)&(boulder.parcel$APN %in% dupe_APN),]
-
-n_occur =
-  data.frame(table(boulder.parcel$APN)) %>%
-  rename(APN=Var1) %>% arrange(-Freq)
-
-dupe_APN = n_occur[n_occur$Freq > 1,"APN"]
-B.dupe =
-  boulder.parcel[boulder.parcel$APN %in% dupe_APN,] %>% group_by(APN) %>%
-  summarize(geometry = st_union(geometry))
-
-boulder.parcel[(boulder.parcel$APN == "157505036006")&
-        (boulder.parcel$area>0),]
-
-boulder.county = boulder.parcel %>% st_union(.)
-
-ggplot() +
-  geom_sf(data=boulder.county, lwd=.1, color='lightgrey') 
-+
-  geom_sf(data=boulder.parcel, lwd=.1) +
-  geom_sf(data=B.dupe,
-          fill='pink', color='red') +
-  plot_limits(poly.geometry= B.dupe)
+# OG_len = nrow(boulder.parcel%>% st_drop_geometry())
+# APN_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., APN))
+# ID_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., ID, APN))
+# area_len = nrow(boulder.parcel[boulder.parcel$area>0,] %>% st_drop_geometry() )
+# 
+# print(OG_len)
+# print(OG_len-APN_len)
+# print(OG_len-ID_len)
+# print(OG_len-area_len)
+# 
+# # boulder.parcel[(boulder.parcel$area<=0)&(boulder.parcel$APN %in% dupe_APN),]
+# 
+# n_occur =
+#   data.frame(table(boulder.parcel$APN)) %>%
+#   rename(APN=Var1) %>% arrange(-Freq)
+# 
+# dupe_APN = n_occur[n_occur$Freq > 1,"APN"]
+# B.dupe =
+#   boulder.parcel[boulder.parcel$APN %in% dupe_APN,] %>% group_by(APN) %>%
+#   summarize(geometry = st_union(geometry))
+# 
+# ggplot() +
+#   geom_sf(data=boulder.county, lwd=.1, color='lightgrey') 
+# +
+#   geom_sf(data=boulder.parcel, lwd=.1) +
+#   geom_sf(data=B.dupe,
+#           fill='pink', color='red') +
+#   plot_limits(poly.geometry= B.dupe)
 ```
 
 
@@ -118,7 +113,6 @@ state.counties =
   st_read('data/col_county_boundaries.geojson') %>%
   st_transform(., col_crs)
 
-
 state.bound = 
   st_read('data/col_state_boundary.geojson') %>%
   st_transform(., col_crs)
@@ -141,12 +135,11 @@ state.cities =
 
 attributes(state.cities$first_area) = NULL
 
-
 boulder.county = state.counties %>% filter(COUNTY=="BOULDER")
 boulder.cities = 
   st_intersection(
     state.cities, 
-    boulder.county %>% st_union()) %>%
+    boulder.county %>% st_union(.)) %>%
   mutate(land_area = st_area(geometry)) %>%
   filter((incorporated!='County')|grepl('Boulder', name_long))
 
@@ -155,7 +148,7 @@ attributes(boulder.cities$land_area) = NULL
 boulder.cities = 
   boulder.cities %>%
   mutate(pct_bould = land_area/first_area) %>%
-  filter(pct_bould<=0.1) %>% select(-pct_bould)
+  filter(pct_bould>=0.1) %>% select(-pct_bould)
 
 boulder.cities.labels = 
   boulder.cities %>%
@@ -173,6 +166,37 @@ boulder.cities.labels =
                                0)))) %>% 
   filter(size>0)
 
+boulder.districts = 
+  st_read('data/boulder_precincts.geojson') %>%
+  st_transform(col_crs) %>% 
+  select(ABBREVIATI) %>% rename(precinct = ABBREVIATI) %>%
+  mutate(precinct = precinct %>% as.character(.))
+
+
+boulder.sales =
+  boulder.sales %>% 
+  select_if(!names(.) %in% c('precinct')) %>%
+  st_join(., boulder.districts)
+
+boulder.sales %>%
+  group_by(precinct) %>%
+  summarize(
+    house_count = tally(MUSA_ID),
+    predict.0_count = tally(toPredict == 0),
+    predict.1_count = tally(toPredict == 1)
+  )
+
+boulder.districts =
+  boulder.districts %>%
+  merge(
+    .,
+    aggregate(boulder.sales$MUSA_ID,
+            by=list(boulder.sales$precinct), FUN=length) %>%
+      rename(precinct = Group.1, house_count=x),
+    by = 'precinct', all.x=TRUE) 
+
+boulder.districts$house_count[is.na(boulder.districts$house_count)] = 0
+
 second_max = function(vector){
   vector_mx = max(vector)
   vector_cut = 
@@ -181,14 +205,16 @@ second_max = function(vector){
   return(max(vector_cut))
 }
 
-hist(boulder.cities$land_area[
-  boulder.cities$land_area<max(boulder.cities$land_area)], 
-     xlim=c(0, second_max(boulder.cities$land_area)), breaks=50)
+hist(boulder.districts$house_count, breaks=50)
 
 ggplot() + 
+  # geom_sf(
+  #   data = boulder.cities, 
+  #   aes(fill=incorporated), 
+  #   color='transparent') + 
   geom_sf(
-    data = boulder.cities, 
-    aes(fill=incorporated), 
+    data = boulder.districts, 
+    aes(fill=house_count), 
     color='transparent') + 
   geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
           lwd=.1, linetype = "dashed") + 
@@ -198,9 +224,266 @@ ggplot() +
     data=boulder.cities.labels, check_overlap=TRUE,
     size = ifelse(boulder.cities.labels$size==2,2.5,2), 
     fontface='bold', color='black',
-    aes(x=lon,y=lat, label=name)) + mapTheme()
+    aes(x=lon,y=lat, label=name)) + 
+  # theme(legend.position = "none")+ 
+  mapTheme()
 
 ```
+
+
+```{r html}
+
+library(rvest)
+
+
+
+
+
+
+
+
+school.raw = 
+  do.call(rbind, table) %>% as.data.frame(.) %>%
+  mutate(
+    id = id %>% gsub("zcsch", "sch", .),
+    url = 
+      glue('https://s3.amazonaws.com/gm-zdm/gj/sch/{id}.geojson'),
+    name = name %>% 
+      gsub("Display ", "", .) %>% 
+      gsub("Attendance Zone Boundary", "", .),
+    geometry = sapply(url, function(url){
+       geom = st_read(url)
+       return(geom[[2]] %>% as.vector())
+      })
+    ) %>%
+  st_sf(., crs=st_crs('EPSG: 4326')) %>% 
+  st_transform(col_crs)
+
+st_write(school.raw, "data/boulder_school_boundary.geojson")
+
+st_make_valid
+school.raw
+
+
+# school_geoms = 
+#   c('https://s3.amazonaws.com/gm-zdm/gj/sch/sch_es_08_1570_2790.geojson',
+#     'https://s3.amazonaws.com/gm-zdm/gj/sch/sch_es_08_0480_9544.geojson') %>%
+#       sapply(., function(url){
+#        geom = st_read(url)
+#        return(geom[[2]] %>% as.vector())
+#       })
+# school_geoms 
+
+as.vector(school_geoms) %>% st_sfc()
+
+col.districts.links = 
+  read_csv('data/col_district_links.csv') %>%
+  mutate(
+    district_type_id = 
+      paste(
+        district_id, 
+        school_level %>% substr(., 1, 1),
+        sep='_'
+  ))
+glimpse(col.districts.links)
+
+```
+
+```{r table}
+
+get_table_attrs = function(dist.row){
+  
+  dist.row =
+    map(dist.row, unlist)
+  
+  dist.url = dist.row$url
+  
+  dist.page = 
+    read_html(dist.url)
+  
+  dist.table = 
+    dist.page %>%
+    html_nodes("[class='table table-striped table-bordered table-hover table-condensed']")
+  
+  ###
+  
+  dist.table.input =
+    dist.table %>% 
+    html_elements("input")
+  
+  dist.table.ids = 
+    dist.table.input %>%
+    html_attr('id') %>% 
+    gsub('zcsch_','sch_', .) %>%
+    data.frame(map_id = .)
+    
+  ###
+  
+  dist.table.text = 
+    dist.table %>%
+    html_nodes('tr')  %>%
+    html_text2(.) %>% 
+    as.vector(.)
+  
+  dist.table.name = 
+    dist.table.text[1] %>% 
+    gsub('List of ','', .)
+  
+  dist.table.columns = 
+    dist.table.text[2] %>%
+    strsplit(., "\t") %>%
+    unlist(., recursive = TRUE, use.names = FALSE)
+  
+  table_to_farm = function(row_str){
+    row_str = 
+      row_str %>%
+      gsub("[\n]",'',.)
+    
+    row_row = 
+      row_str %>% 
+      strsplit(., "[\t]") %>%
+      unlist(., recursive = TRUE, use.names = FALSE)
+    
+    return(row_row[row_row!=""])
+  }
+  
+  dist.table.list = 
+    dist.table.text[3:length(dist.table.text)] %>%
+    sapply(., FUN=table_to_farm)
+  
+  dist.table.list = 
+    dist.table.list[lapply(dist.table.list, length) > 0]
+  
+  if (
+     mean(sapply(dist.table.list, length)) != (length(dist.table.columns)-1)
+   ){
+     print('table_list_length')
+     print(mean(sapply(dist.table.list, length)))
+     print(dist.table.columns)
+     
+     
+     bad = 
+      dist.table.list[lapply(dist.table.list, length)<4] %>% names(.)
+     print(dist.table.list[lapply(dist.table.list, length)<4])
+     print(bad)
+     
+     for (idx in seq(length(bad))){
+       bad_row = dist.table.list[lapply(dist.table.list, length)<4][[idx]]
+       print(bad_row)
+       sch_nm = bad_row[1]
+       dist = bad_row[2]
+       stu = bad_row[3]
+       fix = c(sch_nm, dist, 'null', stu)
+       
+       print(fix)
+       
+       dist.table.list[lapply(dist.table.list, length)<4][[idx]] = fix
+     }
+   }
+  
+  dist.df = 
+    dist.table.list %>%
+    do.call(rbind.data.frame, .)
+  
+  if (
+     mean(nrow(dist.df)) != (nrow(dist.table.ids))
+   ){
+     print('text table length')
+     print(nrow(dist.df))
+     print('id length')
+     print(nrow(dist.table.ids))
+  }
+  
+  dist.df = 
+    cbind(dist.table.ids,dist.df)
+  
+  dist.table.columns = c(
+    'map_id',
+    'school_name_full',
+    'dist_name_full',
+    'school_city',
+    'school_students'
+  )
+  colnames(dist.df) = dist.table.columns
+  
+  dist.df = 
+    dist.df %>%
+    mutate(
+      dist_name = dist.row$name %>% tools::toTitleCase(.),
+      school_level = dist.row$school_level %>% tools::toTitleCase(.),
+      dist_id_full = dist.row$district_type_id,
+      dist_id = dist.row$district_id,
+      school_name = school_name_full %>% 
+        gsub(glue('{school_level} School'), '', .) %>% trimws(.)
+    )
+  
+  dist.columns = colnames(dist.df)
+  dist.columns = c("map_id" ,dist.columns[2:length(dist.columns)] %>% sort(.))
+  dist.df = dist.df[,dist.columns]
+  
+  return(dist.df)
+}
+
+col.districts.table = 
+  col.districts.links %>%
+  apply(., 1, get_table_attrs) %>%
+  do.call(rbind.data.frame, .) %>%
+  mutate(
+    map_url = 
+      glue('https://s3.amazonaws.com/gm-zdm/gj/sch/{map_id}.geojson'))
+
+geom_funct = function(url, map_id){
+      geom =
+      tryCatch(
+        {
+            st_read(url)$geometry
+        },
+        error = function(e){
+            ''
+        })
+      # print(geom)
+      # if(length(geom)>1){print(map_id)}
+      return(geom)
+      }
+
+#geom_funct(col.districts.table$map_url, col.districts.table$map_id)
+col.districts.geoms = 
+  col.districts.table %>%
+  mutate(
+    geometry = 
+      tryCatch(
+        st_make_valid(st_read(map_url, quiet=TRUE)$geometry), 
+        error = function(e) { c(e) })
+  ) %>%
+  st_sf(., crs=st_crs('EPSG: 4326')) %>%
+  st_transform(col_crs)
+col.districts.geoms$geometry
+
+geom_list = list()
+bad_list = list()
+for (url in col.districts.table$map_url){
+
+  geom_list[[url]] =
+    tryCatch(st_make_valid(st_read(url, quiet=TRUE)$geometry) %>% st_union(.), 
+             error = function(e) { cat('In error handler\n'); print(e); e })
+  
+}
+
+check = 
+  geom_list %>% map_df(as_tibble)
+
+check$map_url = names(geom_list) %>% as.vector()
+
+col.districts.geom = 
+  col.districts.table %>% 
+  merge(., check, on='map_url') %>%
+  st_sf(., crs=st_crs('EPSG: 4326')) %>%
+  st_transform(col_crs)
+
+st_write(col.districts.geom, "col_school_boundary.geojson")
+
+```
+
 
 
 ### i.8 schools
@@ -208,10 +491,102 @@ ggplot() +
 
 ```{r plot_sfs}
 
-school_districts_api = 'https://opendata.arcgis.com/datasets/b552828530424726b144bf9b39b417cc_1.geojson'
+# glimpse(col.districts.table)
+# 
+# 
+# 
+#   as_tibble(.,.name_repair ='minimal')
+# 
+# col.districts.table =
+#   #col.districts.links$url %>%
+#   c(col.districts.links$url[1]) %>%
+#   sapply(., get_table_attrs)
+# 
+# 
+# 
+# 
+# # # %>%
+# #     #do.call(rbind, .) %>%
+# #     as.data.frame(.)
+# 
+# glimpse(col.districts.table)
 
-school_districts_scores = 
 
+school.dist.scores = 
+  read_csv('data/colorado_district_rankings_2021.csv') %>%
+  mutate(
+    GEOID = district_id %>% 
+      sapply(., FUN = function(id){
+        paste('08', gsub("\"", "", id), sep='')}), 
+    district_id = district_id %>% 
+      sapply(., FUN = function(id){gsub("\"", "", id)})) 
+
+col.dist.polys = 
+  col.districts.geom %>%
+  st_transform(col_crs) %>% mutate(pre_area = st_area(geometry)) %>%
+  st_intersection(., boulder.county %>% st_union()) %>%
+  mutate(post_area = st_area(geometry))
+
+attributes(col.dist.polys$pre_area) = NULL
+attributes(col.dist.polys$post_area) = NULL
+col.dist.polys = 
+  col.dist.polys %>% 
+  mutate(pct_area = post_area/ pre_area) %>%
+  filter(pct_area>0.01)
+
+boulder.dist.ele = 
+  col.dist.polys %>% 
+  filter(school_level == 'Elementary')
+
+school.elementary.rank =
+  read_csv('data/colorado_elementary_rankings_2020.csv') %>%
+  rename(full_school_id = school_id) %>%
+  mutate(
+    full_school_id = full_school_id %>% 
+      sapply(., FUN = function(id){gsub("\"", "", id)}),
+    district_id = full_school_id %>% 
+      sapply(., FUN = function(id){substr(id, 1, 4)}),
+    school_id = full_school_id %>% 
+      sapply(., FUN = function(id){substr(id, 7, 10)})
+    ) %>% as.data.frame(.)
+
+dist_ids = substr(school.dist.polys$GEOID, 3, 6)
+
+school.elementary.dist = 
+  school.elementary.rank[school.elementary.rank$district_id %in% dist_ids,] %>%
+  mutate(
+    boundary_url = 
+      glue('https://s3.amazonaws.com/gm-zdm/gj/sch/sch_es_08_{district_id}_{school_id}.geojson'))
+
+
+school.elementary.pts = 
+  st_read('data/col_elementary_points.geojson') %>%
+  st_transform(col_crs) 
+
+
+
+
+ggplot() + 
+  # geom_sf(
+  #   data = boulder.cities, 
+  #   aes(fill=incorporated), 
+  #   color='transparent') + 
+  geom_sf(
+    data = boulder.dist.ele, 
+    aes(fill=school_name), 
+    color='transparent') + 
+  geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
+          lwd=.1, linetype = "dashed") +
+  geom_sf(data = boulder.county,
+          fill = 'transparent', color='black',
+          lwd=1) +
+  geom_text(
+    data=boulder.cities.labels, check_overlap=TRUE,
+    size = ifelse(boulder.cities.labels$size==2,2.5,2),
+    fontface='bold', color='black',
+    aes(x=lon,y=lat, label=name)) +
+  theme(legend.position = "none")+ 
+  mapTheme()
 
 ```
 
