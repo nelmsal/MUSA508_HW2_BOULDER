@@ -252,6 +252,28 @@ boulder.nhoods %>%
   st_drop_geometry(.) %>%
   arrange(count)
 
+library(rgdal)
+
+# The input file geodatabase
+fgdb <- "data/Zillow_Neighborhoods/ZillowNeighborhoods.gdb"
+
+# List all feature classes in a file geodatabase
+subset(ogrDrivers(), grepl("GDB", name))
+fc_list <- ogrListLayers(fgdb)
+print(fc_list)
+
+# Read the feature class
+boulder.nhoods.z =
+  readOGR(dsn=fgdb,layer="ZillowNeighborhoodsAreas") %>%
+  st_as_sf(.)
+
+boulder.nhoods.z =  
+  boulder.nhoods.z %>%
+  filter(
+    boulder.nhoods.z$State=='CO') %>%
+  st_transform(col_crs)
+
+
 
 ##########################################
 
@@ -297,8 +319,8 @@ ggplot() +
   #   aes(fill=incorporated), 
   #   color='transparent') + 
   geom_sf(
-    data = boulder.cities_nhoods, 
-    aes(fill=union_id), 
+    data = boulder.nhoods.z, 
+    aes(fill=Name), 
     color='transparent') + 
   geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
           lwd=.1, linetype = "dashed") + 
@@ -311,6 +333,8 @@ ggplot() +
     aes(x=lon,y=lat, label=name)) + 
    theme(legend.position = "none")+ 
   mapTheme()
+
+unique(boulder.nhoods.z$City)
 
 ```
 
@@ -656,8 +680,8 @@ ggplot() +
   #   aes(fill=incorporated), 
   #   color='transparent') + 
   geom_sf(
-    data = boulder.dist.ele, 
-    aes(fill=school_name), 
+    data = boulder.nhoods.z, 
+    aes(fill=Name), 
     color='transparent') + 
   geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
           lwd=.1, linetype = "dashed") +
