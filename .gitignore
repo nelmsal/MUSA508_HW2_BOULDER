@@ -36,3 +36,4 @@ vignettes/*.pdf
 rsconnect/
 data/Boulder_AddressPts_20211009.geojson
 data/Boulder_Parcels_20211009.geojson
+data/Zillow_Neighborhoods/*
