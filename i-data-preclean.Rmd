@@ -94,7 +94,7 @@ boulder.parcel = boulder.parcel %>% filter(area>0)
 ```{r bound}
 
 # CREATE ERASE FUNCTION
-st_erase <- function(x, y) {
+st_erase = function(x, y) {
   st_difference(x, st_union(y))}
 
 state.cities = 
@@ -166,36 +166,120 @@ boulder.cities.labels =
                                0)))) %>% 
   filter(size>0)
 
-boulder.districts = 
+boulder.nhoods = 
   st_read('data/boulder_precincts.geojson') %>%
   st_transform(col_crs) %>% 
-  select(ABBREVIATI) %>% rename(precinct = ABBREVIATI) %>%
-  mutate(precinct = precinct %>% as.character(.))
+  select(ABBREVIATI) %>% rename(nhood_id = ABBREVIATI) %>%
+  mutate(
+    nhood_id = nhood_id %>% as.character(.),
+    neighborhood = nhood_id)
 
+
+
+boulder.cities[
+  st_is(boulder.cities$geometry, 'GEOMETRYCOLLECTION'), 
+  'geometry'] = 
+  boulder.cities[
+    st_is(boulder.cities$geometry, 'GEOMETRYCOLLECTION'), 
+    'geometry'] %>%
+    st_make_valid(.) %>% 
+    st_buffer(1) %>%
+    st_union(., by_feature=TRUE) %>%
+    st_buffer(-1)
+
+
+st_true_union = function(a,b) {
+   st_agr(a) = "constant"
+   st_agr(b) = "constant"
+   op1 = st_difference(a, st_union(b))
+   op2 = st_difference(b, st_union(a))
+   op3 = st_intersection(b, a)
+   union = plyr::rbind.fill(op1, op2, op3)
+   return(st_as_sf(union))
+}
+
+boulder.cities_nhoods = 
+  st_true_union(
+    boulder.nhoods %>% 
+      select(nhood_id) %>%
+      mutate(nhood_area = st_area(geometry)),
+    boulder.cities %>% 
+      select(name) %>%
+      mutate(city_area = st_area(geometry))
+    ) %>%  
+  filter(!is.na(name) & !is.na(nhood_id)) %>%
+  group_by(nhood_id, name) %>%
+  summarize(
+    geometry = st_union(geometry),
+    nhood_area = mean(nhood_area),
+    city_area = mean(city_area)
+    ) %>%
+  mutate(
+    #union_id = seq.int(nrow(.)) %>% as.character(.),
+    union_area = st_area(geometry)
+  )
+
+attributes(boulder.cities_nhoods$nhood_area) = NULL
+attributes(boulder.cities_nhoods$city_area) = NULL
+attributes(boulder.cities_nhoods$union_area) = NULL
+
+boulder.cities_nhoods$city_pct = 
+  boulder.cities_nhoods$union_area/boulder.cities_nhoods$nhood_area
+
+boulder.cities_nhoods = 
+  boulder.cities_nhoods %>% 
+  filter(city_pct > .5) %>%
+  rbind(
+    .,
+    boulder.cities_nhoods[
+      !(boulder.cities_nhoods$nhood_id %in%   boulder.cities_nhoods.5$nhood_id) &
+      boulder.cities_nhoods$name != 'Boulder County',]
+        ) %>%
+  rename(region = name)
+
+boulder.nhoods = 
+  boulder.nhoods %>%
+  merge(
+    .,
+    boulder.cities_nhoods %>%
+      select(nhood_id, region) %>% st_drop_geometry(.),
+    on='nhood_id'
+  )
+
+boulder.nhoods %>%
+  group_by(region) %>%
+  summarise(count = n()) %>%
+  st_drop_geometry(.) %>%
+  arrange(count)
+
+
+##########################################
 
 boulder.sales =
   boulder.sales %>% 
-  select_if(!names(.) %in% c('precinct')) %>%
-  st_join(., boulder.districts)
+  select_if(!names(.) %in% c('neighborhood')) %>%
+  st_join(., boulder.nhoods)
 
-boulder.sales %>%
-  group_by(precinct) %>%
-  summarize(
-    house_count = tally(MUSA_ID),
-    predict.0_count = tally(toPredict == 0),
-    predict.1_count = tally(toPredict == 1)
-  )
+# boulder.sales %>%
+#   group_by(neighborhood) %>%
+#   summarize(
+#     house_count = tally(MUSA_ID),
+#     predict.0_count = tally(toPredict == '0'),
+#     predict.1_count = tally(toPredict == '1')
+#   )
 
-boulder.districts =
-  boulder.districts %>%
+
+
+boulder.nhoods =
+  boulder.nhoods %>%
   merge(
     .,
     aggregate(boulder.sales$MUSA_ID,
-            by=list(boulder.sales$precinct), FUN=length) %>%
-      rename(precinct = Group.1, house_count=x),
-    by = 'precinct', all.x=TRUE) 
+            by=list(boulder.sales$neighborhood), FUN=length) %>%
+      rename(neighborhood = Group.1, house_count=x),
+    by = 'neighborhood', all.x=TRUE) 
 
-boulder.districts$house_count[is.na(boulder.districts$house_count)] = 0
+boulder.nhoods$house_count[is.na(boulder.nhoods$house_count)] = 0
 
 second_max = function(vector){
   vector_mx = max(vector)
@@ -205,7 +289,7 @@ second_max = function(vector){
   return(max(vector_cut))
 }
 
-hist(boulder.districts$house_count, breaks=50)
+hist(boulder.nhoods$house_count, breaks=50)
 
 ggplot() + 
   # geom_sf(
@@ -213,8 +297,8 @@ ggplot() +
   #   aes(fill=incorporated), 
   #   color='transparent') + 
   geom_sf(
-    data = boulder.districts, 
-    aes(fill=house_count), 
+    data = boulder.cities_nhoods, 
+    aes(fill=union_id), 
     color='transparent') + 
   geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
           lwd=.1, linetype = "dashed") + 
@@ -225,7 +309,7 @@ ggplot() +
     size = ifelse(boulder.cities.labels$size==2,2.5,2), 
     fontface='bold', color='black',
     aes(x=lon,y=lat, label=name)) + 
-  # theme(legend.position = "none")+ 
+   theme(legend.position = "none")+ 
   mapTheme()
 
 ```
@@ -652,9 +736,9 @@ boulder.data = boulder.sales[,c(
 
 boulder.dv = boulder.variables[!boulder.variables$var_num %in% c(0,99), 'var_name']
 
-boulder.predict.0 <- boulder.data %>%
+boulder.predict.0 = boulder.data %>%
   filter(.,toPredict == 0)
-boulder.predict.1 <- boulder.data %>%
+boulder.predict.1 = boulder.data %>%
   filter(., toPredict == 1)
 
 boulder.variables

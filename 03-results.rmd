@@ -1,0 +1,287 @@
+# 3. Linear Results 
+
+## A.	Method
+*Briefly interpret each in the context of the Zillow use case*
+
+### 1. Interpret Results
+
+
+## B.	Partition Training & Test Sets
+
+Before developing the model, this study splits the dataset of known home prices [boulder.predict.0] before training a linear model so we can test that model on unbiased data. Specifically, 75% of the known home prices are randomly split into the training dataset [boulder.train] -- while 25% goes into an unbiased test set [boulder.test].
+
+
+```{r setup_train_test_partition}
+
+# produces:
+#   boulder.train
+#   boulder.test
+
+select_v = function(sf, variable_names=c('price', boulder.iv)){
+  return(sf %>% st_drop_geometry(.) %>%
+             select(variable_names))}
+
+select_iv = function(sf, variable_names=boulder.iv){
+  return(sf %>% st_drop_geometry(.) %>%
+             select(variable_names))}
+
+#need the geometries in order to do the Moran's I test later, and to plot the points 
+
+#need to paste in the variable columns that balances factors for categories across the training and test sets. Ken mentions this in Chapter 3 of the textbook
+
+inTrain = createDataPartition(
+              y = do.call(paste, c(
+                boulder.predict.0 %>% select_iv(.)
+                , sep=" ")), 
+              p = .75, list = FALSE)
+
+boulder.train = boulder.predict.0[inTrain,]
+
+boulder.test  = boulder.predict.0[-inTrain,]  
+
+
+```
+
+
+## C. Train Model 
+
+With a training set, the study can now build its initial training linear model [lm.train] based on the independent variables constructed in Section 1.
+
+### 1. Fitting a Linear Model
+
+```{r setup_train_lm}
+
+
+independent_variables = boulder.iv %>% sort() %>% list()
+
+variables_str = 
+  do.call(paste, c(boulder.iv %>% list(), collapse = "+"))
+
+fm_equation = as.formula(paste(
+  dependent_variable, variables_str, sep="~"))
+
+print(fm_equation)
+
+lm.train = 
+  lm(
+    fm_equation, 
+    data = boulder.train %>% select_v(.))
+
+boulder.test =
+  boulder.test %>%
+  mutate(
+    regression      = "Boulder Test Regression",
+    price.predict   = predict(lm.train, boulder.test), 
+    
+    # residuals
+    price.error     = price.predict - price,
+    price.rmse      = sqrt(mean((price.error)^2)),
+    price.abserror  = abs(price.predict - price), 
+    price.ape       = price.abserror / price
+    ) 
+
+# Mean Error
+test.error = 
+  mean(boulder.test$price.error, na.rm = T)
+
+# Mean Absolute Error (MAE)
+test.abserror = 
+  mean(boulder.test$price.abserror, na.rm = T)
+
+# Mean Absolute Percentage Error (MAPE)
+test.ape = 
+  mean(boulder.test$price.ape, na.rm = T)
+
+# Mean Prediction
+test.predict = 
+  mean(boulder.test$price.predict, na.rm = T)
+
+```
+
+
+### 2. Results
+
+#### A. Summary Table
+*Provide a polished table of mean absolute error and MAPE for a single test set.*
+*Check out the “kable” function for markdown to create nice tables.*
+
+``` {r table_train_lm}
+
+stargazer(
+  lm.train, 
+  type="text", digits=1, 
+  title="Table 2: Boulder Training Data Regression Output", 
+  out = "results/Training_LM.txt")
+
+```
+
+#### B. Errors Table
+
+
+``` {r table_train_error}
+
+
+
+```
+
+
+#### C. Plot Training Price over Error
+```{r plot_train_lm}
+
+ggplot(data = boulder.test) +
+  geom_point(aes(x = price, y = price.abserror)) +
+  labs(title = "Figure XX Observed Sale Price and Absolute Error") +
+  plotTheme()
+
+ggplot(data = boulder.test) +
+  geom_point(aes(x = price, y = price.ape)) +
+  labs(title = "Figure XX: Observed Sale Price with Absolute Percent Error") +
+  plotTheme()
+
+```
+
+
+
+## D.	Test Model
+
+### 1. Create K-Fold Cross-Validation Model
+*Provide the results of your cross-validation tests -- 100 folds.* 
+*This includes mean and standard deviation MAE.*
+
+Testing for generalization 
+Comparing mean average error of K-fold output with our model above that we trained 
+
+```{r setup_train_cv}
+# k-fold cross-validation 
+set.seed(825)
+
+
+train.control = 
+  trainControl(
+    method = "cv", 
+    number = 100,
+    savePredictions = TRUE)
+
+# was train.cv
+train.cv =
+  train(price ~ .,
+    data = boulder.train %>% select_v(.),
+    method = "lm", 
+    trControl = train.control, na.action = na.pass)
+
+train.cv
+
+
+```
+
+
+### 3. Run K-Fold Cross-Validation Model
+*Using the Un-Observed House Dataset*
+
+```{r predict_train_cv}
+
+# training.results = 
+#   data.frame(
+#     fm = c()
+#     
+#   )
+
+boulder.predict.0.cv =
+  boulder.predict.0 %>%
+  mutate(
+    regression     = "Baseline Regression",
+    price.predict  = predict(train.cv, boulder.predict), 
+    
+    # Residual
+    price.error    = price.predict - price, 
+    price.abserror = abs(price.predict - price), 
+    price.ape      = price.abserror / price
+    
+    ) %>%  
+  filter(price < 5000000)
+
+
+fold75 = train.cv$control$indexOut$Resample075
+
+boulder.predict.0.reg75 =
+  boulder.predict.0.cv[fold75, c("price", "price.predict")] %>%
+  mutate(
+    price.error = price.predict - price, 
+    price.abserror = abs(price.predict - price), 
+    price.ape = price.abserror / price
+    ) %>% 
+  filter(price < 5000000) 
+
+### ???
+train.cv.rs.min = train.cv$resample[75,]
+### ???
+train.cv.rs.min$MAPE = mean(boulder.predict.0.reg75$price.ape)
+
+
+round_df = function(x, digits) {
+    numeric_columns = sapply(x, mode) == 'numeric'
+    x[numeric_columns] =  round(x[numeric_columns], digits)
+    x
+}
+
+train.cv.rs.min = round_df(train.cv.rs.min, 2)
+
+
+train.cv.rs.min = train.cv$resample[75,]
+
+
+```
+
+### 3. Table of Resampled Cross-Validation
+????
+
+``` {r table_train_cv}
+
+train.cv.rs.min %>%                     
+  gather(Variable, Value) %>%
+  group_by(Variable) %>%
+    spread(Variable, Value) %>%
+  kable(caption = "Table XXX: Regression Results of One Test Set") %>%
+    kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+### 4. Histogram of MAE
+*cross-validation MAE as a histogram.*
+
+```{r histogram_train_cv_MAE}
+
+ggplot(train.cv$resample, aes(x=MAE)) +
+  geom_histogram() +
+  labs(title = "Figure XX: Mean Average Error in Cross Validation Tests") +
+  plotTheme()
+
+```
+
+
+
+
+## E. Model Results
+*Is your model generalized to new data?*
+
+
+### 1. Predict All Home Prices 
+*Run Final Model on all Homes in the data set*
+
+```{r setup_all_predict}
+
+boulder.predict = 
+  boulder.data %>%
+  mutate(
+    price.predict = 
+      predict(train.cv, boulder.data)
+    )
+    
+```
+
+### 2. Plot Predicted Prices over Observed Prices
+*Plot predicted prices as a function of observed prices*
+
+``` {r plot_all_predict_real}
+
+```

@@ -1,0 +1,335 @@
+# 4. Spatial Results
+
+Section 3 was able to create a method of predicting housing prices for homes in Boulder County. Even though the independent variables used to predict housing prices included spatial features, the results were not spatially visualized or analyzed.
+
+> There are three things that matter in property:
+> **location, location, location**
+> 
+>  --- *Lord Harold Samuel[1]*
+
+In this section, the study will examine if the housing price predictions are spatially correlated.
+
+[1]: <https://journals.sagepub.com/doi/pdf/10.1177/0363546513511052> "BD Owens, 'Location, Location, Location'"
+
+## 1. Spatially Visualizing the Price Prediction Model
+
+*1. Provide a map of your residuals for your test set*
+*2. Include a Moran’s I test*
+
+### A. Map of Predicted Prices
+*Using the Price Prediction of All Homes in the dataset*
+
+```{r map_all_predict, message=FALSE, warning=FALSE}
+
+ggplot() +
+### base
+  geom_sf(data = XXXX, fill = "gray90", colour = "white") +
+  geom_sf(data = XXXX, fill = "XXXX", colour = "XXXXX") +
+  
+  
+  geom_sf(data = boulder.predict, aes(colour = q5(price.predict))) +
+ 
+### get palette5???
+  scale_colour_manual(values = palette5) +
+
+ labs(title = "Figure XXX: predicted House Price Values", subtitle = "Boulder County, CO") +
+ # facet_wrap(~toPredict) +
+  mapTheme()
+
+```
+
+
+### B. Map of Prediction Errors
+*Using the Residuals of the Test Set Prediction*
+
+```{r map_test_error}
+
+library(modelr)
+
+boulder.test$price.error = 
+  boulder.test %>%
+  as_data_frame() %>%
+  add_residuals(., boulder.train.lm, var = "resid") %>%
+  dplyr::select(resid, Folio) %>%
+  pull(resid)
+
+ggplot() +
+geom_sf(data = XXXX, fill = "gray90", colour = "XXX") +
+    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXX") +
+  geom_sf(data = boulder.test, aes(colour = q5(resid))) +
+  scale_colour_manual(values = palette5) +
+ labs(title = "Figure XXX: Test Set Residual Errors", subtitle = "XXXXX") +
+  mapTheme()
+
+
+```
+
+## 2. Find Spatial Lag of Predictions
+*Using the Price Prediction and Location of All Homes in the dataset*
+
+### A. Set-Up
+*Find Neighbors of All Homes*
+
+```{r setup_all_SpatialLag}
+
+
+boulder.predict.nb.weights = 
+  boulder.predict %>%
+  # all coordinates
+  st_coordinates(.) %>%
+  # 5-nearest neighbor list
+  knearneigh(., 5) %>%
+  knn2nb(.) %>% 
+  # spatial weights
+  nb2listw(., style="W")
+
+boulder.predict = 
+  boulder.predict %>%
+  mutate(
+    price.lag = 
+      lag.listw(boulder.predict.nb.weights, boulder.predict$price),
+    price.error.lag = 
+      lag.listw(boulder.predict.nb.weights, price.error)
+  )
+
+#################
+
+#spatialWeights.test
+boulder.test.nb.weights = 
+  boulder.test %>%
+  # all coordinates
+  st_coordinates(.) %>%
+  # 5-nearest neighbor list
+  knearneigh(., 5) %>%
+  knn2nb(.) %>% 
+  # spatial weights
+  nb2listw(., style="W")
+
+boulder.test = 
+  boulder.test %>%
+  mutate(
+    price.lag = 
+      lag.listw(boulder.test.nb.weights, boulder.test$price),
+    price.error.lag = 
+      lag.listw(boulder.test.nb.weights, price.error)
+  )
+
+
+```
+
+### B. Plot Spatial Lag and Errors over Price
+
+```{r plot_test_SpatialLag}
+grid.arrange(ncol=2,
+  ggplot(boulder.test, aes(price.lag, price)) +
+    geom_point() +
+    stat_smooth(aes(price.lag, price), 
+               method = "lm", se = FALSE, size = 1, colour="#FA7800")+
+    labs(title = "Figure XXX: Spatial Lag of Price") +
+    plotTheme() + theme(plot.title = element_text(size = 18, colour = "XXXX")),
+
+  ggplot(boulder.test, aes(price.error.lag, price)) +
+    geom_point() +
+    stat_smooth(aes(price.error.lag, price), 
+               method = "lm", se = FALSE, size = 1, colour="#FA7800")+
+    labs(title = "Figure XXX: Spatial Lag of Price Errors") +
+    plotTheme() + theme(plot.title = element_text(size = 18, colour = "XXXX")) 
+)
+
+
+```
+
+
+
+### C. Moran's I of Prediction Errors
+*Using the Residuals of the Test Set Prediction*
+
+```{r plot_test_MoransI}
+
+boulder.test.MoransI = 
+  moran.mc(
+    boulder.test$price.error,
+    boulder.test.nb.weights, 
+    nsim = 999
+    )
+
+ggplot(
+    boulder.test.MoransI$price.error[c(1:999)] %>% as.data.frame(), 
+    aes(boulder.test.MoransI$price.error[c(1:999)])
+  ) +
+  geom_histogram(binwidth = 0.01) +
+  geom_vline(
+    aes(xintercept = 
+          boulder.test.MoransI$statistic), 
+    colour = "#FA7800",size=1) +
+  scale_x_continuous(limits = c(-1, 1)) +
+  labs(
+    title="Figure XX: Observed and Permuted Moran's I",
+    subtitle= "Observed Moran's I in orange",
+    x="Moran's I",
+    y="Count") +
+  plotTheme()
+```
+
+
+
+
+## 3. Understanding Predictions with Neighborhoods
+
+### A. Set Up Neighborhood Effects
+*Using the Training Dataset*
+*Create Neighborhood Linear Model & Combine Datasets*
+
+```{r setup_test_nhood_predict}
+
+
+#neighborhood regression
+lm.test.nhood = 
+  lm(
+    price ~ ., 
+    data = boulder.test %>% 
+      select(c('neighborhood', 'price', boulder.iv))
+    )
+
+boulder.test.nhood =
+  boulder.test %>%
+  mutate(
+    regression      = "Neighborhood Effects",
+    price.predict   = predict(lm.test.nhood, boulder.test), 
+    
+    # residuals
+    price.error     = price.predict - price,
+    price.rmse      = sqrt(mean((price.error)^2)),
+    price.abserror  = abs(price.predict - price), 
+    price.ape       = price.abserror / price,
+    
+    price.error.lag = lag.listw(boulder.test.nb.weights, price.error)
+    ) %>% 
+  filter(price < 5000000)
+
+
+boulder.test.linear_nhood =
+  rbind(
+    boulder.test %>% 
+     # regression = "Boulder Test Regression"
+      select(., starts_with("price"), Regression, neighborhood),
+    boulder.test.nhood %>%
+      # regression = "Neighborhood Effects"
+      select(., starts_with("price"), Regression, neighborhood)
+  )
+
+# table 
+boulder.test.linear_nhood %>%
+  st_drop_geometry(.) %>%
+  gather(Variable, Value, -Regression, -neighborhood) %>%
+  filter(Variable == "price.abserror" | Variable == "price.ape") %>%
+  group_by(Regression, Variable) %>%
+    summarize(meanValue = mean(Value, na.rm = T)) %>%
+    spread(Variable, meanValue) %>%
+    kable(caption = "Table XX: neighbors Effect on Error")
+
+
+```
+
+### B. Map of Predicted Values by Neighborhood
+
+```{r map_nhood_predict}
+
+boulder.predict.nhood = 
+  boulder.data %>%
+  mutate(
+    prediction = predict(lm.test.nhood, boulder.data))
+
+ggplot() +
+  # base
+  geom_sf(data = XXXX, fill = "gray90", colour = "white") +
+    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXXX") +
+  geom_sf(data = boulder.predict.nhood, aes(colour = q5(prediction))) +
+ scale_colour_manual(values = palette5) +
+ labs(
+   title = "Figure XXX: predicted House Price Values with Neighborhood Variance", subtitle = "Boulder County, CO") +
+ # facet_wrap(~toPredict) +
+  mapTheme()
+
+```
+
+
+### C. Accounting for neighborhood variance 
+
+```{r plot_nhood_var}
+
+ggplot(boulder.test.linear_nhood, aes(price, price.predict)) +
+  geom_point() +
+  stat_smooth(aes(price, price),
+             method = "lm", se = FALSE, size = 1, colour="#FA7800") +
+  stat_smooth(aes(price.predict, price),
+              method = "lm", se = FALSE, size = 1, colour="#25CB10") +
+  facet_wrap(~Regression) +
+  labs(title="Figure 10.1: predicted Sale Price and Observed Price",
+       subtitle="Orange line represents a perfect prediction; Green line represents prediction") +
+  plotTheme() + theme(plot.title = element_text(size = 18, colour = "black"))
+
+```
+
+### D. Visualizing MAPE by Neighborhoods
+#### 1. Map
+
+```{r map_nhood_MAPE}
+
+# ???
+names(boulder.test.linear_nhood)[names(boulder.test.linear_nhood) == "OUR NEGHBORHOOD NAME"] = "Our neighbors values name"
+
+boulder.test.linear_nhood %>% 
+    st_drop_geometry(.) %>%
+  group_by(Regression, neighborhood) %>%
+    summarise(mean.MAPE = mean(price.ape, na.rm = T)) %>%
+    ungroup() %>%
+  left_join(neighborhood) %>%
+    st_as_sf(.) %>%
+   ggplot() +
+    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXX") +
+      geom_sf(colour = "gray", aes(fill = q5(mean.MAPE))) +
+      scale_fill_manual(values = paletteMap) +
+  labs(title = "Figure XXX: MAPE by neighbors") +
+      mapTheme()
+
+```
+
+#### 2.	Plot
+*Provide a scatterplot plot of MAPE by neighbors as a function of mean price by neighbors.*
+
+
+```{r plot_nhood_MAPE}
+#plot of MAPE by neighbors as a function of mean price by neighbors
+
+boulder.test.nhood.group =
+  boulder.test.nhood %>%
+    group_by(neighborhood) %>%
+    select(neighborhood, price.ape, price.predict)
+
+
+boulder.test.nhood.mean =
+  boulder.test.nhood.group %>%
+  group_by(neighborhood) %>%
+  summarise_at(vars("price.ape", "price.predict"), mean)
+
+
+plot(
+  boulder.test.nhood.mean$price.predict, 
+  boulder.test.nhood.mean$price.ape, 
+    main="Figure XXX: MAPE by neighbors and Mean Price by neighbors", 
+    xlab="Mean Price by neighbors", 
+    ylab="MAPE by neighbors") +
+  plotTheme()
+
+```
+
+## C.	Split City
+*Using tidycensus, split your city into two groups (perhaps by race or income)*
+*and test your model’s generalizability. Is your model generalizable?*
+```{r test_tidycensus}
+# Testing Model's Generalizability with race or income with Tidycensus
+# Race, Income, etc....
+
+```
+

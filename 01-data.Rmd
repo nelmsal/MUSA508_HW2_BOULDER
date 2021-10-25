@@ -3,16 +3,19 @@
 *Briefly describe your methods for gathering the data.*
 
 ### 1.A.1 Import Data
-```{r import}
-
+```{r import_sales}
+print(getwd())
 col_crs = st_crs('ESRI:102653')
 
 studentData_path =
-  "data/studentData.geojson"
+  "./data/studentData.geojson"
 boulder.sales =
   st_read(studentData_path) %>% 
   st_set_crs('ESRI:102254') %>% 
-  st_transform(., col_crs) 
+  st_transform(., col_crs) %>%
+  mutate(
+    toPredict = toPredict %>% sapply(., as.character)
+  )
 
 boulder.sales$lagPrice = 0
 
@@ -33,7 +36,6 @@ add_v = function(vnme, vnum, vtype){
     vnme, vnum, vtype
     )) %>% arrange(var_num))}}
 
-#ggplot() + geom_sf(data=boulder.sales)
 
 ```
 
@@ -43,7 +45,7 @@ add_v = function(vnme, vnum, vtype){
 ```{r parcel}
 
 parcel_path =
-  "data/Boulder_Parcels_20211009.geojson"
+  "./data/Boulder_Parcels_20211009.geojson"
 boulder.parcel = st_read(parcel_path) %>%
   rename(ID = OBJECTID, APN=PARCEL_NO) %>%
   select(ID,APN) %>%
@@ -55,28 +57,28 @@ attributes(boulder.parcel$area) = NULL
 boulder.parcel = boulder.parcel %>% filter(area>0)
 
 address_path =
-  "data/Boulder_AddressPts_20211009.geojson"
+  "./data/Boulder_AddressPts_20211009.geojson"
 boulder.address = st_read(address_path)%>%
   st_transform(., col_crs)
 
 acct_path =
-  "data/Account_Parcels.csv"
+  "./data/Account_Parcels.csv"
 boulder.parcel.acct = read.csv(acct_path)
 
 build_path =
-  "data/Buildings.csv"
+  "./data/Buildings.csv"
 boulder.parcel.build = read.csv(build_path)
 
 land_path =
-  "data/Land.csv"
+  "./data/Land.csv"
 boulder.parcel.land = read.csv(land_path)
 
 owner_path =
-  "data/Owner_Address.csv"
+  "./data/Owner_Address.csv"
 boulder.parcel.owner = read.csv(owner_path)
 
 # permits =
-#   "data/Permits.csv"
+#   "./data/Permits.csv"
 # B.build = read.csv(build_path)
 
 ```
@@ -191,9 +193,9 @@ boulder.iv = boulder.variables[
   !boulder.variables$var_num %in% c(0,99), 'var_name']
 
 boulder.predict.0 <- boulder.data %>%
-  filter(.,toPredict == 0)
+  filter(.,toPredict == '0')
 boulder.predict.1 <- boulder.data %>%
-  filter(., toPredict == 1)
+  filter(., toPredict == '1')
 
 boulder.variables
 

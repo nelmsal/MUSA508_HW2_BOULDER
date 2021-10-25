@@ -1,19 +1,3 @@
-
-```{r setup, include=FALSE}
-library(bookdown)
-knitr::opts_chunk$set(
-  echo=TRUE,
-  include=TRUE,
-  warning=FALSE,
-  messages=FALSE,
-  fig.width = 8,
-  fig.keep = 'all',
-  collapse=TRUE
-  )
-options(tigris_class = "sf")
-```
-
-
 # 2. Exploratory Data Analysis 
 
 ## B.	Table of Summary Statistics
@@ -23,7 +7,7 @@ options(tigris_class = "sf")
 
 Will be using the topredict=0 homes for this Exploratory Data Analysis
 
-```{r summary,  results='asis'}
+```{r table_predict0_vars,  results='asis'}
 
 select_v = function(sf, variable_names=c('price', boulder.iv)){
   return(sf %>% st_drop_geometry(.) %>%
@@ -50,7 +34,7 @@ stargazer(boulder.predict.0 %>% select_v(.),
 
 ### Histogram
 Plot histograms to assess Normalcy of Data. We don't need to add this in the report, but can be part of data wrangling or feature analysis. ANy that don't appear normal, look at the log transformed 
-```{r histograms}
+```{r histograms_predict0_vars}
 fig_num = 1
 variable_name = 'price'
 hist(
@@ -80,7 +64,7 @@ for (
 Correlation matrix to assess multicollinearity
 see which variables have positive correlation, which variables have negative correlation, and which ones are correlated above 0.8 or negative 0.8, and if that happens, only choose one
 
-```{r correlation matrix}
+```{r corr_predict0_vars}
 
 fig_num = 2
 
@@ -109,7 +93,7 @@ ggcorrplot(
 Scatterplots of home price correlation that are of interest. 
 Looking at interesting open data that we've integrated
 
-```{r scatterplots}
+```{r plot_predict0_vars}
 
 fig_num = 3
 
@@ -178,11 +162,11 @@ for (
 
 ### 1. Map Setup
 
-```{r map_setup}
+```{r setup_map}
 
 
 plot_limits = function(
-  poly.geometry = EB.cities$geometry,
+  poly.geometry = boulder.cities$geometry,
   # buffer between plot's limits and the geometry 
   # (in unit of geometry column)
   buffer = 0
@@ -311,11 +295,9 @@ ggplot()+
 
 ### 2. Map of Dependent Variable - Housing Prices 
 
-```{r map of dependent variable}
+```{r map_predict0_dv}
 
 fig_num = 4
-
-
 
 sub_fig_num = 0
 
@@ -368,7 +350,7 @@ plot_vari_spec(
 *Develop 3 maps of 3 of your most interesting independent variables.*
 Map of independent Variables - XXXX, XXXX, XXXX, XXXX
 
-```{r map of independent variable}
+```{r map_predict0_iv}
 
 #maybe we can insert faded base map of boulder county?
 

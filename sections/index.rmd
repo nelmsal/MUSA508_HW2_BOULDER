@@ -2,7 +2,8 @@
 title: "Assignment 2: Boulder County House Prices Algorithm"
 author: "Gianluca Nelms and Alex Mangiapane"
 date: "10/22/2021"
-output:bookdown::gitbook:
+output: 
+  bookdown::html_document2: 
     code_folding: hide
     fig_caption: yes
     toc: yes
@@ -11,7 +12,7 @@ editor_options:
     wrap: sentence
   chunk_output_type: console
 ---
-#bookdown::render_book('index.Rmd', 'bookdown::gitbook')
+
 
 ```{r setup, include=FALSE}
 library(bookdown)
@@ -24,8 +25,7 @@ knitr::opts_chunk$set(
   fig.keep = 'all',
   collapse=TRUE,
   cache=TRUE, 
-  autodep=TRUE,
-  root.dir = getwd()
+  autodep=TRUE
   )
 
 options(tigris_class = "sf")
@@ -59,10 +59,10 @@ options(tigris_class = "sf")
 
 # 4.	Neighborhoods 
 
-```{r child = '04-spatial.Rmd'}
+```{r child = '04-neighborhoods.Rmd'}
 ```
 ----------------------------------
 
 ```{r render}
-rmarkdown::render('index.Rmd')
+rmarkdown::render('sections/index.rmd')
 ```
