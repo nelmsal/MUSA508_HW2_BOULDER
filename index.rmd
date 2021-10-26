@@ -39,25 +39,26 @@ options(tigris_class = "sf")
 -------------------------------
 
 # 1. Data
-
+*creates Boulder.data, predict.0, predict.1*
 ```{r child = '01-data.Rmd'}
 ```
 
 -------------------------------
 # 2.	EDA
-
+*tables, plots, means*
 ```{r child = '02-EDA.Rmd'}
 ```
 
 -------------------------------
 
-# 3.	Results 
-
+# 3.	Linear Results 
+*create lm train, cv test*
+*plot, tabls*
 ```{r child = '03-results.Rmd'}
 ```
 ----------------------------------
 
-# 4.	Neighborhoods 
+# 4.	Spatial Results 
 
 ```{r child = '04-spatial.Rmd'}
 ```

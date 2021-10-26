@@ -44,38 +44,38 @@ add_v = function(vnme, vnum, vtype){
 
 ```{r parcel}
 
-parcel_path =
-  "./data/Boulder_Parcels_20211009.geojson"
-boulder.parcel = st_read(parcel_path) %>%
-  rename(ID = OBJECTID, APN=PARCEL_NO) %>%
-  select(ID,APN) %>%
-  st_transform(., col_crs) %>% # North Col State Plane Feet
-  mutate(
-    geometry = st_make_valid(geometry),
-    area = st_area(geometry))
-attributes(boulder.parcel$area) = NULL
-boulder.parcel = boulder.parcel %>% filter(area>0)
-
-address_path =
-  "./data/Boulder_AddressPts_20211009.geojson"
-boulder.address = st_read(address_path)%>%
-  st_transform(., col_crs)
-
-acct_path =
-  "./data/Account_Parcels.csv"
-boulder.parcel.acct = read.csv(acct_path)
-
-build_path =
-  "./data/Buildings.csv"
-boulder.parcel.build = read.csv(build_path)
-
-land_path =
-  "./data/Land.csv"
-boulder.parcel.land = read.csv(land_path)
-
-owner_path =
-  "./data/Owner_Address.csv"
-boulder.parcel.owner = read.csv(owner_path)
+# parcel_path =
+#   "./data/Boulder_Parcels_20211009.geojson"
+# boulder.parcel = st_read(parcel_path) %>%
+#   rename(ID = OBJECTID, APN=PARCEL_NO) %>%
+#   select(ID,APN) %>%
+#   st_transform(., col_crs) %>% # North Col State Plane Feet
+#   mutate(
+#     geometry = st_make_valid(geometry),
+#     area = st_area(geometry))
+# attributes(boulder.parcel$area) = NULL
+# boulder.parcel = boulder.parcel %>% filter(area>0)
+# 
+# address_path =
+#   "./data/Boulder_AddressPts_20211009.geojson"
+# boulder.address = st_read(address_path)%>%
+#   st_transform(., col_crs)
+# 
+# acct_path =
+#   "./data/Account_Parcels.csv"
+# boulder.parcel.acct = read.csv(acct_path)
+# 
+# build_path =
+#   "./data/Buildings.csv"
+# boulder.parcel.build = read.csv(build_path)
+# 
+# land_path =
+#   "./data/Land.csv"
+# boulder.parcel.land = read.csv(land_path)
+# 
+# owner_path =
+#   "./data/Owner_Address.csv"
+# boulder.parcel.owner = read.csv(owner_path)
 
 # permits =
 #   "./data/Permits.csv"
@@ -87,41 +87,43 @@ boulder.parcel.owner = read.csv(owner_path)
 
 ```{r parcel_clean}
 
-OG_len = nrow(boulder.parcel%>% st_drop_geometry())
-APN_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., APN))
-ID_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., ID, APN))
-area_len = nrow(boulder.parcel[boulder.parcel$area>0,] %>% st_drop_geometry() )
-
-print(OG_len)
-print(OG_len-APN_len)
-print(OG_len-ID_len)
-print(OG_len-area_len)
-
-# boulder.parcel[(boulder.parcel$area<=0)&(boulder.parcel$APN %in% dupe_APN),]
-
-n_occur =
-  data.frame(table(boulder.parcel$APN)) %>%
-  rename(APN=Var1) %>% arrange(-Freq)
-
-dupe_APN = n_occur[n_occur$Freq > 1,"APN"]
-B.dupe =
-  boulder.parcel[boulder.parcel$APN %in% dupe_APN,] %>% group_by(APN) %>%
-  summarize(geometry = st_union(geometry))
-
-boulder.parcel[(boulder.parcel$APN == "157505036006")&
-        (boulder.parcel$area>0),]
-
-boulder.county = boulder.parcel %>% st_union(.)
-
-ggplot() +
-  geom_sf(data=boulder.county, lwd=.1, color='lightgrey')
-+
-  geom_sf(data=boulder.parcel, lwd=.1) +
-  geom_sf(data=B.dupe,
-          fill='pink', color='red') +
-  plot_limits(poly.geometry= B.dupe)
+# OG_len = nrow(boulder.parcel%>% st_drop_geometry())
+# APN_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., APN))
+# ID_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., ID, APN))
+# area_len = nrow(boulder.parcel[boulder.parcel$area>0,] %>% st_drop_geometry() )
+# 
+# print(OG_len)
+# print(OG_len-APN_len)
+# print(OG_len-ID_len)
+# print(OG_len-area_len)
+# 
+# # boulder.parcel[(boulder.parcel$area<=0)&(boulder.parcel$APN %in% dupe_APN),]
+# 
+# n_occur =
+#   data.frame(table(boulder.parcel$APN)) %>%
+#   rename(APN=Var1) %>% arrange(-Freq)
+# 
+# dupe_APN = n_occur[n_occur$Freq > 1,"APN"]
+# B.dupe =
+#   boulder.parcel[boulder.parcel$APN %in% dupe_APN,] %>% group_by(APN) %>%
+#   summarize(geometry = st_union(geometry))
+# 
+# boulder.parcel[(boulder.parcel$APN == "157505036006")&
+#         (boulder.parcel$area>0),]
+# 
+# boulder.county = boulder.parcel %>% st_union(.)
+# 
+# ggplot() +
+#   geom_sf(data=boulder.county, lwd=.1, color='lightgrey')
+# +
+#   geom_sf(data=boulder.parcel, lwd=.1) +
+#   geom_sf(data=B.dupe,
+#           fill='pink', color='red') +
+#   plot_limits(poly.geometry= B.dupe)
 ```
 
+
+### 1.A.8 Neighborhoods
 
 ```{r plot_sfs}
 
@@ -193,7 +195,10 @@ boulder.iv = boulder.variables[
   !boulder.variables$var_num %in% c(0,99), 'var_name']
 
 boulder.predict.0 <- boulder.data %>%
-  filter(.,toPredict == '0')
+  filter(.,
+         toPredict == '0',
+         price < 30000000
+         )
 boulder.predict.1 <- boulder.data %>%
   filter(., toPredict == '1')
 

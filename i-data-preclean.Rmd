@@ -15,18 +15,18 @@ col_crs = st_crs('ESRI:102653')
 
 ```{r parcel}
 
-parcel_path =
-  "data/Boulder_Parcels_20211009.geojson"
-boulder.parcel = st_read(parcel_path) %>%
-  rename(ID = OBJECTID, APN=PARCEL_NO) %>%
-  select(ID,APN) %>%
-  st_transform(., col_crs) %>% # North Col State Plane Feet
-  mutate(
-    geometry = st_make_valid(geometry),
-    area = st_area(geometry))
-attributes(boulder.parcel$area) = NULL
-boulder.parcel = boulder.parcel %>% filter(area>0)
-
+# parcel_path =
+#   "data/Boulder_Parcels_20211009.geojson"
+# boulder.parcel = st_read(parcel_path) %>%
+#   rename(ID = OBJECTID, APN=PARCEL_NO) %>%
+#   select(ID,APN) %>%
+#   st_transform(., col_crs) %>% # North Col State Plane Feet
+#   mutate(
+#     geometry = st_make_valid(geometry),
+#     area = st_area(geometry))
+# attributes(boulder.parcel$area) = NULL
+# boulder.parcel = boulder.parcel %>% filter(area>0)
+#
 # address_path =
 #   "data/Boulder_AddressPts_20211009.geojson"
 # boulder.address = st_read(address_path)%>%
@@ -187,6 +187,7 @@ boulder.cities[
     st_union(., by_feature=TRUE) %>%
     st_buffer(-1)
 
+###################3
 
 st_true_union = function(a,b) {
    st_agr(a) = "constant"
@@ -198,59 +199,123 @@ st_true_union = function(a,b) {
    return(st_as_sf(union))
 }
 
-boulder.cities_nhoods = 
-  st_true_union(
-    boulder.nhoods %>% 
-      select(nhood_id) %>%
-      mutate(nhood_area = st_area(geometry)),
-    boulder.cities %>% 
-      select(name) %>%
-      mutate(city_area = st_area(geometry))
-    ) %>%  
-  filter(!is.na(name) & !is.na(nhood_id)) %>%
-  group_by(nhood_id, name) %>%
-  summarize(
-    geometry = st_union(geometry),
-    nhood_area = mean(nhood_area),
-    city_area = mean(city_area)
-    ) %>%
-  mutate(
-    #union_id = seq.int(nrow(.)) %>% as.character(.),
-    union_area = st_area(geometry)
-  )
 
-attributes(boulder.cities_nhoods$nhood_area) = NULL
-attributes(boulder.cities_nhoods$city_area) = NULL
-attributes(boulder.cities_nhoods$union_area) = NULL
-
-boulder.cities_nhoods$city_pct = 
-  boulder.cities_nhoods$union_area/boulder.cities_nhoods$nhood_area
-
-boulder.cities_nhoods = 
-  boulder.cities_nhoods %>% 
-  filter(city_pct > .5) %>%
-  rbind(
-    .,
-    boulder.cities_nhoods[
-      !(boulder.cities_nhoods$nhood_id %in%   boulder.cities_nhoods.5$nhood_id) &
-      boulder.cities_nhoods$name != 'Boulder County',]
+get_majority_intersect = 
+  function(focus_sf, focus_id_field, compare_sf, compare_id_field,
+           # rename_compare_id_field='',
+           minimium_area_pct = .25){
+    focus_crs = st_crs(focus_sf)
+    
+    sf.focus = 
+      focus_sf %>%
+      select(focus_id_field)
+    
+    sf.compare = 
+      compare_sf %>%
+      select(compare_id_field) %>%
+      st_transform(focus_crs)
+    
+    sf.focus_compare = 
+      st_true_union(
+        sf.focus %>% 
+          mutate(focus_area = st_area(geometry)),
+        sf.compare %>% 
+          select(compare_id_field) %>%
+          mutate(compare_area = st_area(geometry))
+        )
+    
+    sf.focus_compare = 
+      sf.focus_compare %>% 
+      filter(
+        !is.na(sf.focus_compare[[compare_id_field]]) & 
+          !is.na(sf.focus_compare[[focus_id_field]])) %>%
+      group_by_at(vars(c(focus_id_field, compare_id_field))) %>%
+      summarize(
+        geometry = st_union(geometry),
+        focus_area = mean(focus_area),
+        compare_area = mean(compare_area)
         ) %>%
-  rename(region = name)
+      mutate(
+        #union_id = seq.int(nrow(.)) %>% as.character(.),
+        union_area = st_area(geometry)
+      )
+    
+    attributes(sf.focus_compare$focus_area) = NULL
+    attributes(sf.focus_compare$compare_area) = NULL
+    attributes(sf.focus_compare$union_area) = NULL
+    
+    sf.focus_compare$compare_pct = 
+      sf.focus_compare$union_area/sf.focus_compare$focus_area
+    
+    sf.focus_compare = 
+      sf.focus_compare %>% 
+      filter(compare_pct > minimium_area_pct) %>%
+      group_by_at(vars(focus_id_field)) %>% 
+      slice(which.max(compare_pct))
+    
+    
+    # if(rename_compare_id_field!=''){
+    #   
+    #   col_names = colnames(sf.focus_compare)
+    #   
+    #   old = c(compare_id_field)
+    #   all_old = all_of(c(col_names[!col_names %in% old], old))
+    #   new = c(rename_compare_id_field)
+    #   all_new = all_of(c(col_names[!col_names %in% new], new))
+    #   print(sf.focus_compare)
+    #   sf.focus_compare = 
+    #     sf.focus_compare %>% 
+    #     plyr::rename(., c(compare_id_field=rename_compare_id_field))
+    #     # select(all_old) %>%
+    #     # rename_with(~ all_new, all_old)
+    #   
+    #   compare_id_field = rename_compare_id_field
+    # }
+    
+    sf.focus = 
+      focus_sf %>%
+      merge(
+        .,
+        sf.focus_compare %>%
+          select(focus_id_field, compare_id_field) %>% st_drop_geometry(.),
+        on=focus_id_field,
+        all.x = TRUE
+      )
+    
+    print('number of null joins')
+    print(nrow(sf.focus[is.na(sf.focus[[compare_id_field]]),]))
+    
+    sf.focus[[compare_id_field]][is.na(sf.focus[[compare_id_field]])] = 'NULL'
+    
+    
+    
+    return(sf.focus)
+  }
 
-boulder.nhoods = 
-  boulder.nhoods %>%
+boulder.nhoods.c =
+  get_majority_intersect(
+    boulder.nhoods, 'nhood_id', 
+    boulder.cities, 'name',
+    # rename_compare_id_field = 'region',
+    minimium_area_pct=.1)
+
+boulder.nhoods.c =
+  boulder.nhoods.c %>%
   merge(
     .,
-    boulder.cities_nhoods %>%
-      select(nhood_id, region) %>% st_drop_geometry(.),
-    on='nhood_id'
+    boulder.nhoods.c %>%
+      group_by(name) %>%
+      summarise(name_count = n()) %>%
+      st_drop_geometry(.),
+    on='name'
+        ) %>%
+  rename(
+    city = name,
+    city_count = name_count
   )
+  
+###########
 
-boulder.nhoods %>%
-  group_by(region) %>%
-  summarise(count = n()) %>%
-  st_drop_geometry(.) %>%
-  arrange(count)
 
 library(rgdal)
 
@@ -271,12 +336,128 @@ boulder.nhoods.z =
   boulder.nhoods.z %>%
   filter(
     boulder.nhoods.z$State=='CO') %>%
-  st_transform(col_crs)
+  st_transform(col_crs) %>%
+  rename(
+    zhood = Name,
+    zhood_id = RegionID
+  ) %>%
+  select(zhood, zhood_id)
+
+boulder.nhoods.cz =
+  get_majority_intersect(
+    boulder.nhoods.c, 'nhood_id', 
+    boulder.nhoods.z, 'zhood_id',
+    # rename_compare_id_field = 'region',
+    minimium_area_pct=.1)
+
+boulder.nhoods.cz =
+  boulder.nhoods.cz %>%
+  merge(
+    .,
+    boulder.nhoods.z %>%
+      select(zhood_id, zhood) %>%
+      st_drop_geometry(.),
+    on=zhood_id,
+    all.x = TRUE) %>%
+  mutate_by(., group=zhood_id, zhood_count = n())
+
+boulder.nhoods.cz[boulder.nhoods.cz$zhood_id=='NULL', 'zhood_count']=0
+
+boulder.nhoods.cz %>% 
+  group_by(zhood_id) %>% 
+  summarize(count = mean(zhood_count),
+            first = first(zhood)) %>% 
+  st_drop_geometry() %>%
+  arrange(count)
+
+
+boulder.nhoods.cz =
+  boulder.nhoods.cz %>%
+  mutate(
+    name = ifelse(
+      zhood_id=='NULL', 
+      city,
+      zhood
+    )) %>%
+  mutate_by(
+    group=name, 
+    name_count = n(),
+    neighborhood = paste(name, row_number()))
+
+
+boulder.nhoods.cz %>% arrange(-name_count)
+
+
+```
+
+``` {r orient}
+
+boulder.nhoods.focus =
+  boulder.nhoods.cz %>%
+    filter(boulder.nhoods.cz[[focus_id_field]] == 'Lanyon') %>%
+  mutate_by(
+    group=zhood,
+    group.geometry = st_union(geometry),
+    group.centroid = st_centroid(geometry),
+    group.area = st_centroid(geometry)
+    ) %>%
+  mutate(nhood.area = st_area(geometry))
+
+
+boulder.nhoods.focus %>%
+  merge(
+    .,
+    boulder.nhoods.focus %>%
+      group_by_at(zhood) %>%
+      summarize(
+        
+      )%>%
+    ungroup(),
+      on = focus_id_field)
+
+boulder.nhoods.group =
+  boulder.nhoods.focus %>%
+        group_by_at(zhood) %>%
+        summarize(
+          group.geometry = st_union(geometry),
+          group.centroid = st_centroid(geometry)
+        )%>%
+      ungroup()
 
 
 
-##########################################
+boulder.nhoods.group =
+  boulder.nhoods.focus %>%
+    mutate_by(
+      group.geometry = st_union(geometry),
+      group.centroid = st_centroid(group.geometry), 
+      group = vars(focus_id_field)) 
 
+ggplot() + 
+  # geom_sf(
+  #   data = boulder.cities, 
+  #   aes(fill=incorporated), 
+  #   color='transparent') + 
+  geom_sf(
+    data = boulder.nhoods.group, 
+    aes(fill=zhood), 
+    color='grey50') + 
+  geom_sf(
+    data = boulder.nhoods.group %>% st_union(.) %>% st_centroid(.), 
+    color='black') +
+  geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
+          lwd=.1, linetype = "dashed") + 
+  geom_sf(data = boulder.county, fill = 'transparent', color='black',
+          lwd=1) + 
+  geom_text_sf(sf_to_labels(boulder.nhoods.group, 'zhood_id')) +
+  theme(legend.position = "none") + 
+  mapTheme() +
+  plot_limits(poly.geometry = boulder.nhoods.group$geometry)
+
+```
+
+
+``` {r add_nhood}
 boulder.sales =
   boulder.sales %>% 
   select_if(!names(.) %in% c('neighborhood')) %>%
@@ -319,9 +500,9 @@ ggplot() +
   #   aes(fill=incorporated), 
   #   color='transparent') + 
   geom_sf(
-    data = boulder.nhoods.z, 
-    aes(fill=Name), 
-    color='transparent') + 
+    data = boulder.nhoods, 
+    aes(fill=nhood_id), 
+    color='grey50') + 
   geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
           lwd=.1, linetype = "dashed") + 
   geom_sf(data = boulder.county, fill = 'transparent', color='black',
@@ -331,7 +512,7 @@ ggplot() +
     size = ifelse(boulder.cities.labels$size==2,2.5,2), 
     fontface='bold', color='black',
     aes(x=lon,y=lat, label=name)) + 
-   theme(legend.position = "none")+ 
+   theme(legend.position = "none") + 
   mapTheme()
 
 unique(boulder.nhoods.z$City)

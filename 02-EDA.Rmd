@@ -1,6 +1,6 @@
 # 2. Exploratory Data Analysis 
 
-## B.	Table of Summary Statistics
+## A.	Table of Summary Statistics
 *Present a table of summary statistics with variable descriptions.*
 
 *Sort these variables by their category (internal characteristics, amenities/public services or spatial structure).Check out the `stargazer` package for this.*
@@ -32,7 +32,7 @@ stargazer(boulder.predict.0 %>% select_v(.),
 
 *(this doesn't need to be in the report, but a method of filtering and transforming non-normally distributed data)*
 
-### Histogram
+## B. Histogram
 Plot histograms to assess Normalcy of Data. We don't need to add this in the report, but can be part of data wrangling or feature analysis. ANy that don't appear normal, look at the log transformed 
 ```{r histograms_predict0_vars}
 fig_num = 1

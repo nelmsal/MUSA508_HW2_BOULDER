@@ -195,7 +195,7 @@ boulder.test.nhood =
   boulder.test %>%
   mutate(
     regression      = "Neighborhood Effects",
-    price.predict   = predict(lm.test.nhood, boulder.test), 
+    price.predict   = predict(lm.test.nhood, .), 
     
     # residuals
     price.error     = price.predict - price,

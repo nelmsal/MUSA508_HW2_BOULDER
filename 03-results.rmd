@@ -27,7 +27,8 @@ select_iv = function(sf, variable_names=boulder.iv){
 
 #need the geometries in order to do the Moran's I test later, and to plot the points 
 
-#need to paste in the variable columns that balances factors for categories across the training and test sets. Ken mentions this in Chapter 3 of the textbook
+# #need to paste in the variable columns th
+# lances factors for categories across the training and test sets. Ken mentions this in Chapter 3 of the textbook
 
 inTrain = createDataPartition(
               y = do.call(paste, c(
@@ -51,7 +52,6 @@ With a training set, the study can now build its initial training linear model [
 
 ```{r setup_train_lm}
 
-
 independent_variables = boulder.iv %>% sort() %>% list()
 
 variables_str = 
@@ -62,6 +62,8 @@ fm_equation = as.formula(paste(
 
 print(fm_equation)
 
+
+##################
 lm.train = 
   lm(
     fm_equation, 
@@ -71,7 +73,7 @@ boulder.test =
   boulder.test %>%
   mutate(
     regression      = "Boulder Test Regression",
-    price.predict   = predict(lm.train, boulder.test), 
+    price.predict   = predict(lm.train, .), 
     
     # residuals
     price.error     = price.predict - price,
@@ -113,6 +115,7 @@ stargazer(
   title="Table 2: Boulder Training Data Regression Output", 
   out = "results/Training_LM.txt")
 
+summary(lm.train)
 ```
 
 #### B. Errors Table
@@ -128,15 +131,21 @@ stargazer(
 #### C. Plot Training Price over Error
 ```{r plot_train_lm}
 
-ggplot(data = boulder.test) +
-  geom_point(aes(x = price, y = price.abserror)) +
-  labs(title = "Figure XX Observed Sale Price and Absolute Error") +
-  plotTheme()
 
-ggplot(data = boulder.test) +
-  geom_point(aes(x = price, y = price.ape)) +
-  labs(title = "Figure XX: Observed Sale Price with Absolute Percent Error") +
-  plotTheme()
+library(gridExtra)
+
+
+grid.arrange(ncol=2,
+  ggplot(data = boulder.test) +
+    geom_point(aes(x = price, y = price.abserror)) +
+    labs(subtitle = "Observed Sale Price and Absolute Error") +
+    plotTheme(),
+  
+  ggplot(data = boulder.test) +
+    geom_point(aes(x = price, y = price.ape)) +
+    labs(subtitle = "Observed Sale Price with Absolute Percent Error") +
+    plotTheme()
+)
 
 ```
 
@@ -190,15 +199,14 @@ boulder.predict.0.cv =
   boulder.predict.0 %>%
   mutate(
     regression     = "Baseline Regression",
-    price.predict  = predict(train.cv, boulder.predict), 
+    price.predict  = predict(train.cv, .), 
     
     # Residual
     price.error    = price.predict - price, 
     price.abserror = abs(price.predict - price), 
     price.ape      = price.abserror / price
     
-    ) %>%  
-  filter(price < 5000000)
+    )
 
 
 fold75 = train.cv$control$indexOut$Resample075
@@ -274,7 +282,7 @@ boulder.predict =
   boulder.data %>%
   mutate(
     price.predict = 
-      predict(train.cv, boulder.data)
+      predict(train.cv, .)
     )
     
 ```
