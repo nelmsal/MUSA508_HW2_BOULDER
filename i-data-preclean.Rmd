@@ -320,11 +320,11 @@ boulder.nhoods.c =
 library(rgdal)
 
 # The input file geodatabase
-fgdb <- "data/Zillow_Neighborhoods/ZillowNeighborhoods.gdb"
+fgdb = "data/Zillow_Neighborhoods/ZillowNeighborhoods.gdb"
 
 # List all feature classes in a file geodatabase
 subset(ogrDrivers(), grepl("GDB", name))
-fc_list <- ogrListLayers(fgdb)
+fc_list = ogrListLayers(fgdb)
 print(fc_list)
 
 # Read the feature class
@@ -382,7 +382,12 @@ boulder.nhoods.cz =
   mutate_by(
     group=name, 
     name_count = n(),
-    neighborhood = paste(name, row_number()))
+    neighborhood = ifelse(
+      name_count > 1,
+      paste(name, row_number()),
+      name)
+    )
+      
 
 
 boulder.nhoods.cz %>% arrange(-name_count)
@@ -392,46 +397,188 @@ boulder.nhoods.cz %>% arrange(-name_count)
 
 ``` {r orient}
 
-boulder.nhoods.focus =
+boulder.nhoods.focus.group =
   boulder.nhoods.cz %>%
-    filter(boulder.nhoods.cz[[focus_id_field]] == 'Lanyon') %>%
+    filter(boulder.nhoods.cz$name_count>1) %>%
   mutate_by(
-    group=zhood,
+    group=name,
     group.geometry = st_union(geometry),
-    group.centroid = st_centroid(geometry),
-    group.area = st_centroid(geometry)
+    group.centroid = st_centroid(group.geometry),
+    group.area = st_area(group.geometry),
+    nhood.geometry = geometry
     ) %>%
   mutate(nhood.area = st_area(geometry))
 
+attributes(boulder.nhoods.focus.group$group.area) = NULL
+attributes(boulder.nhoods.focus.group$nhood.area) = NULL
 
-boulder.nhoods.focus %>%
-  merge(
-    .,
-    boulder.nhoods.focus %>%
-      group_by_at(zhood) %>%
-      summarize(
+
+## function to create orientation sector sf (NESW) (NE,SE,SW,NW) (Center)
+get_max_yx_lengths = function(sf_focus){
+  f_coords = 
+  sf_focus %>% 
+    st_union(.) %>%
+    st_centroid(.) %>%
+    st_coordinates(.)
+
+  x = f_coords[1]
+  y = f_coords[2]
+  
+  f_box = boulder.nhoods.focus %>% st_bbox(.)
+  
+  y_length = max(f_box$ymax-y, y-f_box$ymin)
+  x_length = max(f_box$xmax-x, x-f_box$xmin)
+  
+  xy_list = list()
+  
+  xy_list['ymax'] = y_length
+  xy_list['xmax'] = x_length
+  return(xy_list)
+}
+
+
+
+
+
+st_envelope = function(sf_focus){
+  xy_list = get_max_yx_lengths(sf_focus)
+
+  box = sf_focus %>% 
+        c(diff(st_bbox(.)[c(1, 3)]), diff(st_bbox(.)[c(2, 4)]))
+  buff_size = max(box$ymax, box$xmax)
+  
+  sf.focus
+    sf_focus %>%
+    st_union(.) %>%
+    st_centroid(.) %>%
+    st_buffer(., buff_size) %>%
+    st_sf(.) %>%
+    mutate(bbox = map(geometry, bbox_wrap),
+           geometry = st_as_sfc(do.call(rbind, bbox))) %>%
+    select(-bbox) 
+    
+  return(sf.focus)
+}
+  
+sf_rotated_fish = function(sf_focus, rotate_angle=45){
+  #focus_crs = st_crs(3857)
+  focus_crs = st_crs(sf_focus)
+  
+  sf.focus = sf_focus %>% 
+    st_transform(., focus_crs) %>% 
+    st_union(.) %>%
+    st_geometry(.)
+  
+  
+  xy_list = get_max_yx_lengths(sf.focus)
+
+  box = sf_focus %>% 
+        st_transform(., focus_crs)  %>%
+        c(diff(st_bbox(.)[c(1, 3)]), diff(st_bbox(.)[c(2, 4)]))
+  buff_size = max(box$ymax, box$xmax)
+  
+  rot = function(a) matrix(c(cos(a), sin(a), -sin(a), cos(a)), 2, 2)
+  tran = function(geo, ang, center) (geo - center) * rot(ang * pi / 180) + center
+  
+  sf.input =
+    sf.focus %>%
+    st_sf(.) %>%
+    st_union(.) %>%
+    st_centroid(.) %>%
+    st_buffer(., buff_size) %>%
+    st_sf(.) %>%
+    mutate(bbox = map(geometry, bbox_wrap),
+           geometry = st_as_sfc(do.call(rbind, bbox))) %>%
+    select(-bbox) %>%
+    st_geometry(.)
+  
+  center = st_centroid(st_union(sf.input))
+  sf.grid = st_make_grid(
+    tran(sf.input, -rotate_angle, center), 
+    square = TRUE,
+    n = c(2,2),
+    what='polygons'
+    )
+  sf.grid_rotate = 
+    tran(sf.grid, rotate_angle, center) %>%
+    st_sf(., crs=focus_crs) %>%
+    st_transform(., st_crs(sf_focus))
+
+return(sf.grid_rotate)
+}
+
+  
+
+  
+get_fish_name = function(focus_name){
+  
+  boulder.nhoods.focus = boulder.nhoods.focus.group %>%
+    filter(name == focus_name)
+  
+  bbox_wrap <- function(x) st_as_sfc(st_bbox(x))
+  xy_list = get_max_yx_lengths(boulder.nhoods.focus)
+  
+  boulder.nhoods.focus.fish = 
+    rbind(
+      sf_rotated_fish(
+         boulder.nhoods.focus,
+         rotate_angle=45) %>% 
+        mutate(orientation = c('W','S','N','E')) %>%
+        st_intersection(., boulder.nhoods.focus),
+      
+      st_make_grid(
+        boulder.nhoods.focus %>% 
+          st_union(.) %>%
+          st_centroid(.) %>%
+          st_buffer(., max(xy_list$ymax, xy_list$xmax)),
+        square = TRUE,
+        n = c(2,2),
+        what='polygons') %>% 
+      st_sf(.) %>%
+      mutate(orientation = c('SW','SE','NW','NE')) %>%
+      st_intersection(., boulder.nhoods.focus),
+      
+      boulder.nhoods.focus %>% 
+        st_union(.) %>%
+        st_centroid(.) %>%
+        st_buffer(., max(xy_list$ymax, xy_list$xmax)*.35) %>% 
+      st_sf(.) %>%
+      mutate(orientation = c('Center')) %>%
+      st_intersection(., boulder.nhoods.focus)
+      ) %>%
+    mutate(
+      nhood.pct = nhood.area/group.area,
+      orient.area = st_area(geometry)
+    )
+  attributes(boulder.nhoods.focus.fish$orient.area) = NULL
+  
+  boulder.nhoods.focus.fish.group = 
+    boulder.nhoods.focus.fish %>%
+    mutate(orient.pct = orient.area/nhood.area) %>%
+    group_by(nhood_id) %>%
+    slice(which.max(orient.pct)) %>%
+    mutate(
+      geometry = nhood.geometry,
+      orient.name = ifelse(
+        nhood.pct >= .6,
+        name,
+        paste(orientation, name))
+      ) %>%
+    st_drop_geometry(.) %>%
+    select(nhood_id, orient.name, orientation)
+  
+  return(boulder.nhoods.focus.fish.group)
+}
+
+boulder.nhoods.orient = 
+  rbind(
+    
+  )
+boulder.nhoods.orient = 
+  do.call(rbind.data.frame, 
+        lapply(boulder.nhoods.focus.group$name, get_fish_name))
         
-      )%>%
-    ungroup(),
-      on = focus_id_field)
-
-boulder.nhoods.group =
-  boulder.nhoods.focus %>%
-        group_by_at(zhood) %>%
-        summarize(
-          group.geometry = st_union(geometry),
-          group.centroid = st_centroid(geometry)
-        )%>%
-      ungroup()
-
-
-
-boulder.nhoods.group =
-  boulder.nhoods.focus %>%
-    mutate_by(
-      group.geometry = st_union(geometry),
-      group.centroid = st_centroid(group.geometry), 
-      group = vars(focus_id_field)) 
+glimpse(boulder.nhoods.orient)
 
 ggplot() + 
   # geom_sf(
@@ -439,20 +586,32 @@ ggplot() +
   #   aes(fill=incorporated), 
   #   color='transparent') + 
   geom_sf(
-    data = boulder.nhoods.group, 
-    aes(fill=zhood), 
+    data = boulder.nhoods.focus.fish %>%
+      group_by(orientation) %>%
+      summarize(geometry=st_union(geometry)), 
+    fill='transparent',
     color='grey50') + 
   geom_sf(
-    data = boulder.nhoods.group %>% st_union(.) %>% st_centroid(.), 
+    data = boulder.nhoods.focus.fish.group,
+    aes(fill=nhood_id), alpha=.5,
+    color='black', linetype = "dashed") +
+  geom_sf(
+    data = boulder.nhoods.focus.fish %>% st_union(.) %>% st_centroid(.), 
     color='black') +
-  geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
-          lwd=.1, linetype = "dashed") + 
-  geom_sf(data = boulder.county, fill = 'transparent', color='black',
-          lwd=1) + 
-  geom_text_sf(sf_to_labels(boulder.nhoods.group, 'zhood_id')) +
+  # geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
+  #         lwd=.1, linetype = "dashed") + 
+  # geom_sf(data = boulder.county, fill = 'transparent', color='black',
+  #         lwd=1) + 
+  geom_text_sf(sf_to_labels(
+    boulder.nhoods.focus.fish %>% 
+      group_by(orientation) %>%
+      summarize(geometry = st_union(geometry)), 
+    'orientation'), color='grey50', size=1) +
+  geom_text_sf(sf_to_labels(boulder.nhoods.focus.fish.group, 
+    'neighborhood'), color='black') +
   theme(legend.position = "none") + 
   mapTheme() +
-  plot_limits(poly.geometry = boulder.nhoods.group$geometry)
+  plot_limits(poly.geometry = boulder.nhoods.focus.fish$geometry)
 
 ```
 
