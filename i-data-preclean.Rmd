@@ -1,8 +1,6 @@
-# i. Data
-## i.A Gathering Data
-*Briefly describe your methods for gathering the data.*
+# i. Pre-Clean Data
 
-### i.A.1 Import Data
+## 1 CRS
 ```{r import}
 
 col_crs = st_crs('ESRI:102653')
@@ -10,8 +8,7 @@ col_crs = st_crs('ESRI:102653')
 
 ```
 
-### i.A.2 Parcel Joins
-
+## 2 Parcel Joins
 
 ```{r parcel}
 
@@ -54,7 +51,7 @@ col_crs = st_crs('ESRI:102653')
 
 ```
 
-### i.A.3 Parcel Clean
+## 3 Parcel Clean
 
 ```{r parcel_clean}
 
@@ -89,7 +86,7 @@ col_crs = st_crs('ESRI:102653')
 ```
 
 
-### i.5 boundaries 
+## 4 City & County boundaries 
 
 ```{r bound}
 
@@ -150,6 +147,8 @@ boulder.cities =
   mutate(pct_bould = land_area/first_area) %>%
   filter(pct_bould>=0.1) %>% select(-pct_bould)
 
+
+
 boulder.cities.labels = 
   boulder.cities %>%
   st_centroid(., of_largest_polygon = TRUE) %>% 
@@ -166,14 +165,6 @@ boulder.cities.labels =
                                0)))) %>% 
   filter(size>0)
 
-boulder.nhoods = 
-  st_read('data/boulder_precincts.geojson') %>%
-  st_transform(col_crs) %>% 
-  select(ABBREVIATI) %>% rename(nhood_id = ABBREVIATI) %>%
-  mutate(
-    nhood_id = nhood_id %>% as.character(.),
-    neighborhood = nhood_id)
-
 
 
 boulder.cities[
@@ -187,7 +178,32 @@ boulder.cities[
     st_union(., by_feature=TRUE) %>%
     st_buffer(-1)
 
-###################3
+
+st_write(boulder.cities, "data/boulder_cities.geojson")
+st_write(boulder.county, "data/boulder_county.geojson")
+
+###################
+
+
+```
+
+## 5 Neighborhoods
+### A Import
+``` {r neighborhoods}
+
+boulder.nhoods = 
+  st_read('data/boulder_precincts.geojson') %>%
+  st_transform(col_crs) %>% 
+  select(ABBREVIATI) %>% rename(nhood_id = ABBREVIATI) %>%
+  mutate(
+    nhood_id = nhood_id %>% as.character(.),
+    neighborhood = nhood_id)
+
+```
+
+### B City Join
+
+``` {r city}
 
 st_true_union = function(a,b) {
    st_agr(a) = "constant"
@@ -316,7 +332,11 @@ boulder.nhoods.c =
   
 ###########
 
+```
 
+### C Zillow Join 
+
+``` {r Zillow}
 library(rgdal)
 
 # The input file geodatabase
@@ -388,12 +408,11 @@ boulder.nhoods.cz =
       name)
     )
       
-
-
 boulder.nhoods.cz %>% arrange(-name_count)
 
-
 ```
+
+### D Orientation Join
 
 ``` {r orient}
 
@@ -416,15 +435,15 @@ attributes(boulder.nhoods.focus.group$nhood.area) = NULL
 ## function to create orientation sector sf (NESW) (NE,SE,SW,NW) (Center)
 get_max_yx_lengths = function(sf_focus){
   f_coords = 
-  sf_focus %>% 
-    st_union(.) %>%
-    st_centroid(.) %>%
-    st_coordinates(.)
+    sf_focus %>% 
+      st_union(.) %>%
+      st_centroid(.) %>%
+      st_coordinates(.)
 
   x = f_coords[1]
   y = f_coords[2]
   
-  f_box = boulder.nhoods.focus %>% st_bbox(.)
+  f_box = sf_focus %>% st_bbox(.)
   
   y_length = max(f_box$ymax-y, y-f_box$ymin)
   x_length = max(f_box$xmax-x, x-f_box$xmin)
@@ -436,16 +455,14 @@ get_max_yx_lengths = function(sf_focus){
   return(xy_list)
 }
 
-
-
-
-
 st_envelope = function(sf_focus){
   xy_list = get_max_yx_lengths(sf_focus)
 
   box = sf_focus %>% 
         c(diff(st_bbox(.)[c(1, 3)]), diff(st_bbox(.)[c(2, 4)]))
   buff_size = max(box$ymax, box$xmax)
+  
+  bbox_wrap = function(x) st_as_sfc(st_bbox(x))
   
   sf.focus
     sf_focus %>%
@@ -476,6 +493,7 @@ sf_rotated_fish = function(sf_focus, rotate_angle=45){
         st_transform(., focus_crs)  %>%
         c(diff(st_bbox(.)[c(1, 3)]), diff(st_bbox(.)[c(2, 4)]))
   buff_size = max(box$ymax, box$xmax)
+  bbox_wrap = function(x) st_as_sfc(st_bbox(x))
   
   rot = function(a) matrix(c(cos(a), sin(a), -sin(a), cos(a)), 2, 2)
   tran = function(geo, ang, center) (geo - center) * rot(ang * pi / 180) + center
@@ -510,12 +528,15 @@ return(sf.grid_rotate)
   
 
   
-get_fish_name = function(focus_name){
+get_fish_name = function(
+    focus_name,
+    return_all=FALSE
+                         ){
   
   boulder.nhoods.focus = boulder.nhoods.focus.group %>%
     filter(name == focus_name)
   
-  bbox_wrap <- function(x) st_as_sfc(st_bbox(x))
+  bbox_wrap = function(x) st_as_sfc(st_bbox(x))
   xy_list = get_max_yx_lengths(boulder.nhoods.focus)
   
   boulder.nhoods.focus.fish = 
@@ -567,70 +588,157 @@ get_fish_name = function(focus_name){
     st_drop_geometry(.) %>%
     select(nhood_id, orient.name, orientation)
   
-  return(boulder.nhoods.focus.fish.group)
+  if(return_all==FALSE){
+    return(
+      boulder.nhoods.focus.fish.group 
+      )
+  } else{
+    return(
+      boulder.nhoods.focus.fish %>%
+        mutate(orient.pct = orient.area/nhood.area)
+      )
+  }
+  
 }
 
 boulder.nhoods.orient = 
-  rbind(
-    
-  )
-boulder.nhoods.orient = 
   do.call(rbind.data.frame, 
-        lapply(boulder.nhoods.focus.group$name, get_fish_name))
-        
+        lapply(unique(boulder.nhoods.focus.group$name), get_fish_name)) %>%
+  mutate_by(
+      group=orient.name, 
+      orient.count = n(),
+      orient.name = ifelse(
+        orient.count > 1,
+        paste(orient.name, row_number()),
+        orient.name)
+      )
+      
 glimpse(boulder.nhoods.orient)
 
+
+random_sample = 
+  boulder.nhoods.focus.group$name[sample.int(length(boulder.nhoods.focus.group$name), 1)]
+
+boulder.nhoods.focus.fish_all =
+  get_fish_name(random_sample, return_all=TRUE)
+
+boulder.nhoods.focus.fish = 
+  boulder.nhoods.focus.fish_all %>%
+    mutate(orient.pct = orient.area/nhood.area) %>%
+    group_by(nhood_id) %>%
+    slice(which.max(orient.pct)) %>%
+    mutate(
+      geometry = nhood.geometry,
+      orient.name = ifelse(
+        nhood.pct >= .6,
+        name,
+        paste(orientation, name))
+      )
+
 ggplot() + 
-  # geom_sf(
-  #   data = boulder.cities, 
-  #   aes(fill=incorporated), 
-  #   color='transparent') + 
   geom_sf(
-    data = boulder.nhoods.focus.fish %>%
-      group_by(orientation) %>%
-      summarize(geometry=st_union(geometry)), 
+    data = 
+      boulder.nhoods.focus.fish_all %>%
+        group_by(orientation) %>%
+        summarize(geometry=st_union(geometry)), 
     fill='transparent',
     color='grey50') + 
   geom_sf(
-    data = boulder.nhoods.focus.fish.group,
+    data = 
+      boulder.nhoods.focus.fish_all%>%
+        mutate(orient.pct = orient.area/nhood.area) %>%
+        group_by(nhood_id) %>%
+        slice(which.max(orient.pct)),
     aes(fill=nhood_id), alpha=.5,
     color='black', linetype = "dashed") +
   geom_sf(
-    data = boulder.nhoods.focus.fish %>% st_union(.) %>% st_centroid(.), 
+    data = 
+      boulder.nhoods.focus.fish_all %>% 
+        st_union(.) %>% st_centroid(.), 
     color='black') +
   # geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
   #         lwd=.1, linetype = "dashed") + 
   # geom_sf(data = boulder.county, fill = 'transparent', color='black',
   #         lwd=1) + 
   geom_text_sf(sf_to_labels(
-    boulder.nhoods.focus.fish %>% 
+    boulder.nhoods.focus.fish_all %>% 
       group_by(orientation) %>%
       summarize(geometry = st_union(geometry)), 
-    'orientation'), color='grey50', size=1) +
-  geom_text_sf(sf_to_labels(boulder.nhoods.focus.fish.group, 
-    'neighborhood'), color='black') +
+    'orientation'), 
+    color='grey50', 
+    size=1) +
+  geom_text_sf(sf_to_labels(
+    boulder.nhoods.focus.fish, 
+    'orient.name'), color='black') +
   theme(legend.position = "none") + 
   mapTheme() +
   plot_limits(poly.geometry = boulder.nhoods.focus.fish$geometry)
 
+
+
+#########
+
+boulder.nhoods.czf = 
+  boulder.nhoods.cz %>%
+  merge(
+    .,
+    boulder.nhoods.orient %>% select(nhood_id, orient.name, orient.count),
+    on = 'nhood_id',
+    all.x = TRUE
+  )
+boulder.nhoods.czf$orient.count[is.na(boulder.nhoods.czf$orient.count)] = 0
+
+boulder.nhoods.czf = 
+  boulder.nhoods.czf %>% 
+  select(-name_count) %>%
+  mutate(
+    name = ifelse(
+      orient.count > 0,
+      orient.name,
+      ifelse(
+        zhood_count == 1,
+        zhood,
+        city
+      ))
+  ) %>% 
+  mutate_by(
+    group=name,
+    name_count = n(),
+    neighborhood = ifelse(
+      name_count > 1,
+      paste(name, row_number()),
+      name)
+    ) %>%
+  rename(sub_nhood = zhood) %>%
+  select(
+    nhood_id,
+    city,
+    neighborhood
+  )
+
+boulder.nhoods.czf
+st_write(
+  boulder.nhoods.czf, 
+  "data/boulder_neighborhoods.geojson")
+
 ```
 
+### E Combine NHood
 
 ``` {r add_nhood}
+
+boulder.nhoods = boulder.nhoods.czf
+
 boulder.sales =
   boulder.sales %>% 
-  select_if(!names(.) %in% c('neighborhood')) %>%
+  #select_if(!names(.) %in% c('neighborhood')) %>%
   st_join(., boulder.nhoods)
 
-# boulder.sales %>%
-#   group_by(neighborhood) %>%
-#   summarize(
-#     house_count = tally(MUSA_ID),
-#     predict.0_count = tally(toPredict == '0'),
-#     predict.1_count = tally(toPredict == '1')
-#   )
-
-
+boulder.sales %>%
+  group_by(neighborhood) %>%
+  summarize(
+    house_count = n()
+    )
 
 boulder.nhoods =
   boulder.nhoods %>%
@@ -665,7 +773,7 @@ ggplot() +
   geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
           lwd=.1, linetype = "dashed") + 
   geom_sf(data = boulder.county, fill = 'transparent', color='black',
-          lwd=1) + 
+          lwd= 1) + 
   geom_text(
     data=boulder.cities.labels, check_overlap=TRUE,
     size = ifelse(boulder.cities.labels$size==2,2.5,2), 
@@ -674,21 +782,12 @@ ggplot() +
    theme(legend.position = "none") + 
   mapTheme()
 
-unique(boulder.nhoods.z$City)
-
 ```
 
 
 ```{r html}
 
 library(rvest)
-
-
-
-
-
-
-
 
 school.raw = 
   do.call(rbind, table) %>% as.data.frame(.) %>%
@@ -1038,7 +1137,7 @@ ggplot() +
 
 ```
 
-### i.A.9 Assorted Variable Creation
+## 9 Assorted Variable Creation
 
 ```{r assorted}
 
@@ -1073,7 +1172,7 @@ boulder.variables = add_v(
 
 ```
 
-### i.A.10 Set Up boulder.data & 0/1 Partition
+## 10 Set Up boulder.data & 0/1 Partition
 
 variables are one of these types:
 1.	Internal characteristics (e.g. bedrooms)

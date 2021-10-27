@@ -122,12 +122,86 @@ add_v = function(vnme, vnum, vtype){
 #   plot_limits(poly.geometry= B.dupe)
 ```
 
+``` {r boundaries}
+
+boulder.county = 
+  st_read('data/boulder_county.geojson') %>%
+  st_sf(., crs=col_crs)
+
+boulder.cities = 
+  st_read('data/boulder_cities.geojson') %>%
+  st_sf(., crs=col_crs)
+
+geom_county = function(
+  sf_county = boulder.county,
+  fill = 'transparent', color='black',
+  lwd=1
+  ){
+    c_plot = geom_sf(data = sf_county, fill = fill, color=color,
+          lwd=lwd)
+    return(c_plot)}
+
+geom_cities = function(
+  sf_cities = boulder.cities,
+  fill = 'transparent', color='grey',
+  lwd=.1, linetype = "dashed"
+  ){
+    c_plot = geom_sf(data = sf_cities, fill = fill, color=color,
+          lwd=lwd,linetype = linetype)
+    return(c_plot)}
+  
+```
+
 
 ### 1.A.8 Neighborhoods
 
 ```{r plot_sfs}
 
 
+boulder.nhoods = 
+  st_read('data/boulder_neighborhoods.geojson') %>%
+  st_sf(., crs=col_crs)
+
+
+boulder.sales =
+  boulder.sales %>% 
+  #select_if(!names(.) %in% c('neighborhood')) %>%
+  st_join(., boulder.nhoods)
+
+boulder.sales %>%
+  group_by(neighborhood) %>%
+  summarize(
+    house_count = n()
+    )
+
+boulder.nhoods =
+  boulder.nhoods %>%
+  merge(
+    .,
+    aggregate(boulder.sales$MUSA_ID,
+            by=list(boulder.sales$neighborhood), FUN=length) %>%
+      rename(neighborhood = Group.1, house_count=x),
+    by = 'neighborhood', all.x=TRUE) 
+
+boulder.nhoods$house_count[is.na(boulder.nhoods$house_count)] = 0
+
+
+ggplot() + 
+  # geom_sf(
+  #   data = boulder.cities, 
+  #   aes(fill=incorporated), 
+  #   color='transparent') + 
+  geom_sf(
+    data = boulder.nhoods, 
+    aes(fill=nhood_id), 
+    color='grey50') + 
+  geom_cities() + 
+  geom_county() + 
+  geom_text_sf(sf_to_labels(
+    boulder.cities, 
+    'name')) + 
+   theme(legend.position = "none") + 
+  mapTheme()
 
 ```
 
@@ -164,6 +238,16 @@ boulder.variables = add_v(
   "EffectiveYear",   3,    "Internal"
 )
 
+boulder.sales %>% 
+  group_by(qualityCode) %>%
+  st_drop_geometry(.) %>%
+  summarize(qualityCodeDscr = first(qualityCodeDscr))
+
+# 5. Quality of House by accessor
+boulder.variables = add_v(
+  "qualityCode",   5,    "Internal"
+)
+
 ```
 
 ### 1.A.10 Set Up boulder.data & 0/1 Partition
@@ -181,8 +265,13 @@ ID_fields = c(
 #   ID given by michael
   "MUSA_ID",
 #   whether they should be predicted (1) or already have a price (0)
-  "toPredict"
+  "toPredict",
+#   neighborhoods -- geometries & IDs based on voting districts 
+#     names based on zillow & city data
+  "neighborhood",
+  "nhood_id"
   )
+
 
 
 boulder.data = boulder.sales[,c(
