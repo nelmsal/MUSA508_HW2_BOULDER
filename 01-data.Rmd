@@ -227,7 +227,6 @@ boulder.variables = add_v(
   "mainfloorSF",   2,    "Internal"
 )
 
-
 # N. Nearest Neighbor
 boulder.variables = add_v(
   "lagPrice",      99,   "Spatial"

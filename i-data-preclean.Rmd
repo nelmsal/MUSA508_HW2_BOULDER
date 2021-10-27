@@ -783,7 +783,8 @@ ggplot() +
   mapTheme()
 
 ```
-
+## 6 Schools
+### A Proto
 
 ```{r html}
 
@@ -823,6 +824,16 @@ school.raw
 
 as.vector(school_geoms) %>% st_sfc()
 
+glimpse(col.districts.links)
+
+```
+
+
+### B get district links
+
+```{r table}
+library(rvest)
+
 col.districts.links = 
   read_csv('data/col_district_links.csv') %>%
   mutate(
@@ -832,11 +843,12 @@ col.districts.links =
         school_level %>% substr(., 1, 1),
         sep='_'
   ))
-glimpse(col.districts.links)
 
 ```
 
-```{r table}
+### C get school links
+
+``` {r school}
 
 get_table_attrs = function(dist.row){
   
@@ -978,6 +990,11 @@ col.districts.table =
   mutate(
     map_url = 
       glue('https://s3.amazonaws.com/gm-zdm/gj/sch/{map_id}.geojson'))
+```
+
+### D get geometries
+
+``` {r geom}
 
 geom_funct = function(url, map_id){
       geom =
@@ -994,17 +1011,17 @@ geom_funct = function(url, map_id){
       }
 
 #geom_funct(col.districts.table$map_url, col.districts.table$map_id)
-col.districts.geoms = 
-  col.districts.table %>%
-  mutate(
-    geometry = 
-      tryCatch(
-        st_make_valid(st_read(map_url, quiet=TRUE)$geometry), 
-        error = function(e) { c(e) })
-  ) %>%
-  st_sf(., crs=st_crs('EPSG: 4326')) %>%
-  st_transform(col_crs)
-col.districts.geoms$geometry
+# col.districts.geoms = 
+#   col.districts.table %>%
+#   mutate(
+#     geometry = 
+#       tryCatch(
+#         st_make_valid(st_read(map_url, quiet=TRUE)$geometry), 
+#         error = function(e) { c(e) })
+#   ) %>%
+#   st_sf(., crs=st_crs('EPSG: 4326')) %>%
+#   st_transform(col_crs)
+# col.districts.geoms$geometry
 
 geom_list = list()
 bad_list = list()
@@ -1029,14 +1046,29 @@ col.districts.geom =
 
 st_write(col.districts.geom, "col_school_boundary.geojson")
 
+
+col.dist.polys = 
+  col.districts.geom %>%
+  st_transform(col_crs) %>% mutate(pre_area = st_area(geometry)) %>%
+  st_intersection(., boulder.county %>% st_union()) %>%
+  mutate(post_area = st_area(geometry))
+
+attributes(col.dist.polys$pre_area) = NULL
+attributes(col.dist.polys$post_area) = NULL
+
+col.dist.polys = 
+  col.dist.polys %>% 
+  mutate(pct_area = post_area/ pre_area) %>%
+  filter(pct_area>0.01)
+
 ```
 
 
 
-### i.8 schools
+## 6 Schools
 
 
-```{r plot_sfs}
+```{r schools}
 
 # glimpse(col.districts.table)
 # 
@@ -1068,18 +1100,8 @@ school.dist.scores =
     district_id = district_id %>% 
       sapply(., FUN = function(id){gsub("\"", "", id)})) 
 
-col.dist.polys = 
-  col.districts.geom %>%
-  st_transform(col_crs) %>% mutate(pre_area = st_area(geometry)) %>%
-  st_intersection(., boulder.county %>% st_union()) %>%
-  mutate(post_area = st_area(geometry))
 
-attributes(col.dist.polys$pre_area) = NULL
-attributes(col.dist.polys$post_area) = NULL
-col.dist.polys = 
-  col.dist.polys %>% 
-  mutate(pct_area = post_area/ pre_area) %>%
-  filter(pct_area>0.01)
+
 
 boulder.dist.ele = 
   col.dist.polys %>% 
