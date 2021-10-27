@@ -5,7 +5,10 @@
 
 *Sort these variables by their category (internal characteristics, amenities/public services or spatial structure).Check out the `stargazer` package for this.*
 
-Will be using the topredict=0 homes for this Exploratory Data Analysis
+
+
+The table below summarizes the variables that we are looking at to predict housing prices in Boulder county. These variables do not indicate causal relationship with house prices. Instead, we are investigating if the presence of these observations can correlate to  better predictions of what housing prices could be in the future. 
+
 
 ```{r table_predict0_vars,  results='asis'}
 
@@ -32,8 +35,8 @@ stargazer(boulder.predict.0 %>% select_v(.),
 
 *(this doesn't need to be in the report, but a method of filtering and transforming non-normally distributed data)*
 
-## B. Histogram
-Plot histograms to assess Normalcy of Data. We don't need to add this in the report, but can be part of data wrangling or feature analysis. ANy that don't appear normal, look at the log transformed 
+*B. Histogram*
+*Plot histograms to assess Normalcy of Data. We don't need to add this in the report, but can be part of data wrangling or feature analysis. Any that don't appear normal, look at the log transformed*
 ```{r histograms_predict0_vars}
 fig_num = 1
 variable_name = 'price'
@@ -61,8 +64,7 @@ for (
 ## C.	Correlation Matrix
 *Present a correlation matrix*
 
-Correlation matrix to assess multicollinearity
-see which variables have positive correlation, which variables have negative correlation, and which ones are correlated above 0.8 or negative 0.8, and if that happens, only choose one
+The below figure shows a correlation matrix between the various predictor variables, highlighting which of the predictor variables present similar information. Any predictors with correlation valye greater than 0.8 means they are related to each other, and we only need to include one of them, otherwise we are repeating the same information essentially.  
 
 ```{r corr_predict0_vars}
 
@@ -86,12 +88,14 @@ ggcorrplot(
 
 
 ## D.	Plots of Home Sales Price & 4 Independent Variables
-*Present 4 home price correlation scatterplots that you think are of interest.*
+*Present 4 home price correlation scatter plots that you think are of interest.*
 
 *I’m going to look for interesting open data that you’ve integrated with the home sale observations*
 
-Scatterplots of home price correlation that are of interest. 
-Looking at interesting open data that we've integrated
+The below are an example of three predictor variables that we are looking at to assess how well they can be used to predict boulder house sales prices. We expect to observe XXX, XXXX, and XXXX to have a positive relationship with house sales prices.   
+
+These scatter plots also indicate whether the relationship can be predicted using a linear model, or if we need to utilize a different method for better fit. 
+
 
 ```{r plot_predict0_vars}
 
