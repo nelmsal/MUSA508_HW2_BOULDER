@@ -96,6 +96,8 @@ The below are an example of three predictor variables that we are looking at to 
 
 These scatter plots also indicate whether the relationship can be predicted using a linear model, or if we need to utilize a different method for better fit. 
 
+Talk about results of scatter plots on the variables 
+
 
 ```{r plot_predict0_vars}
 
@@ -299,6 +301,9 @@ ggplot()+
 
 ### 2. Map of Dependent Variable - Housing Prices 
 
+Further to looking at the linear relationship between the variables, we also examine the spatial location and visual patterns between the predictor variables and house sales price through several maps. 
+
+The map below shows the spatial distribution of house sales prices through Boulder County. 
 ```{r map_predict0_dv}
 
 fig_num = 4
@@ -352,7 +357,11 @@ plot_vari_spec(
 
 ## F.	Maps of 3 Independent Variables
 *Develop 3 maps of 3 of your most interesting independent variables.*
-Map of independent Variables - XXXX, XXXX, XXXX, XXXX
+
+
+Next, we look at the spatial features of the the variables XXXX, XXXX, XXXX and XXXX.  Comment on where they look on the map, how its ditributed. 
+
+
 
 ```{r map_predict0_iv}
 

@@ -46,7 +46,7 @@ boulder.test  = boulder.predict.0[-inTrain,]
 
 ## C. Train Model 
 
-With a training set, the study can now build its initial training linear model [lm.train] based on the independent variables constructed in Section 1.
+With a training set, the study can now build its initial training linear model [lm.train] based on the predictor variables constructed in Section 1.
 
 ### 1. Fitting a Linear Model
 
@@ -107,6 +107,9 @@ test.predict =
 *Provide a polished table of mean absolute error and MAPE for a single test set.*
 *Check out the “kable” function for markdown to create nice tables.*
 
+
+The results of our model on the training set are presented below. The R-Squared valuu tells us the percentage of our model that accounts for the variance in house sales price, of which it is XXX (indicating hhgow well our model explains the variation), and the low p-value of the f-test, p<0.0001 indicates that our variables are statistically significant, indicating high levels of confidence that the relationship between predictor variables and house sales price is not zero (indicating lack of predicting ability). 
+
 ``` {r table_train_lm}
 
 stargazer(
@@ -120,6 +123,7 @@ summary(lm.train)
 
 #### B. Errors Table
 
+The error summarized below indicates how well our model is predicting hosue sales value compared to known house sales values, with the error being that difference (i.e., the residuals). This will tell us how accurate our model is, with an error of XXXX, indicating....XXX
 
 ``` {r table_train_error}
 
@@ -129,6 +133,8 @@ summary(lm.train)
 
 
 #### C. Plot Training Price over Error
+
+
 ```{r plot_train_lm}
 
 
@@ -157,8 +163,7 @@ grid.arrange(ncol=2,
 *Provide the results of your cross-validation tests -- 100 folds.* 
 *This includes mean and standard deviation MAE.*
 
-Testing for generalization 
-Comparing mean average error of K-fold output with our model above that we trained 
+Next, we have to account for generalizability, in order for our model to be effective at predicting unknown, future data. We run a k-fold test on 100 of segments of our data equally split up, and then find the mean average error. 
 
 ```{r setup_train_cv}
 # k-fold cross-validation 
@@ -241,7 +246,8 @@ train.cv.rs.min = train.cv$resample[75,]
 ```
 
 ### 3. Table of Resampled Cross-Validation
-????
+
+In the table below, we see that for Fold075, we have an r-Squared value of XXX and a RMSE of XXX (compare it to RMSE and R2 of model). 
 
 ``` {r table_train_cv}
 
@@ -256,6 +262,8 @@ train.cv.rs.min %>%
 
 ### 4. Histogram of MAE
 *cross-validation MAE as a histogram.*
+
+The histogram below shows the distribution of mean average error across the 100 folds of the K-test. 
 
 ```{r histogram_train_cv_MAE}
 

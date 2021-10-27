@@ -5,26 +5,26 @@ Table 2: Boulder Training Data Regression Output
                     ---------------------------
                                price           
 -----------------------------------------------
-nbrBedRoom                  64,913.5***        
-                             (5,171.8)         
+nbrBedRoom                  64,960.6***        
+                             (5,171.9)         
                                                
-mainfloorSF                  328.6***          
+mainfloorSF                  328.5***          
                                (8.3)           
                                                
-nbrBaths                    57,568.6***        
-                             (5,151.1)         
+nbrBaths                    57,557.3***        
+                             (5,151.2)         
                                                
-EffectiveYear               -1,445.3***        
+EffectiveYear               -1,436.1***        
                               (296.2)          
                                                
-Constant                  2,846,777.0***       
-                            (586,655.6)        
+Constant                  2,828,618.0***       
+                            (586,669.0)        
                                                
 -----------------------------------------------
 Observations                  11,083           
 R2                              0.2            
 Adjusted R2                     0.2            
-Residual Std. Error   481,325.4 (df = 11078)   
-F Statistic          809.5*** (df = 4; 11078)  
+Residual Std. Error   481,336.4 (df = 11078)   
+F Statistic          809.4*** (df = 4; 11078)  
 ===============================================
 Note:               *p<0.1; **p<0.05; ***p<0.01
