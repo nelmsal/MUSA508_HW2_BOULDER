@@ -1047,25 +1047,89 @@ col.districts.geom =
 st_write(col.districts.geom, "col_school_boundary.geojson")
 
 
-col.dist.polys = 
+boulder.dist.cach = 
   col.districts.geom %>%
   st_transform(col_crs) %>% mutate(pre_area = st_area(geometry)) %>%
   st_intersection(., boulder.county %>% st_union()) %>%
   mutate(post_area = st_area(geometry))
 
-attributes(col.dist.polys$pre_area) = NULL
-attributes(col.dist.polys$post_area) = NULL
+attributes(boulder.dist.cach$pre_area) = NULL
+attributes(boulder.dist.cach$post_area) = NULL
 
-col.dist.polys = 
-  col.dist.polys %>% 
+boulder.ele.cach = 
+  boulder.dist.cach %>% 
   mutate(pct_area = post_area/ pre_area) %>%
-  filter(pct_area>0.01)
+  filter(pct_area>0.01) %>%
+  filter(.[['school_level']]=='Elementary') %>%
+  select(map_id, dist_id, school_name, school_students)
+
+boulder.ele.pts = 
+  st_read('data/col_elementary_points.geojson') %>%
+  st_transform(col_crs) %>%
+  st_intersection(., boulder.county %>% st_union()) 
+
+unique(col.dist.polys$school_level)
+
+st_distance_dist_id = function(
+  focus_sf, compare_sf,
+  focus_id='', compare_id=''){
+  
+  if (focus_id==''){
+    focus_sf$focus_id = row_number()
+  }else
+  {
+    focus_sf$focus_id = focus_sf[[focus_id]]
+  }
+  
+  if (compare_id==''){
+    compare_sf$compare_id = row_number()
+  }else
+  {
+    compare_sf$compare_id = compare_sf[[compare_id]]
+  }
+  
+  dist_df =
+    st_distance(
+      focus_sf,
+      compare_sf
+    ) %>%
+    data.frame(.)
+  
+  names(dist_df) = compare_sf$compare_id
+  rownames(dist_df) = focus_sf$focus_id
+  
+  # near = dist_df %>% 
+  #   mutate(ID = rownames(.)) %>% 
+  #   gather('closest','dist',-ID) %>% 
+  #   filter(!is.na(dist)) %>% 
+  #   group_by(ID) %>% 
+  #   arrange(dist) %>% 
+  #   slice(1:5) %>% 
+  #   mutate(dist_rank=1:5)
+  
+  return(dist_df)
+}
+
+boulder.sales_ele =
+  st_distance_dist_id(
+    boulder.sales, # 11,364
+    boulder.ele.pts,
+    focus_id = 'MUSA_ID',
+    compare_id = 'School_Code'
+  )
+
+dim(boulder.sales_ele)
+
+boulder.sales$nn.ele = 
+  matrixStats::rowMins(boulder.sales_ele)
+boulder.sales$nn.ele_id = 
+  matrixStats::rowMins(boulder.sales_ele, value = T)
 
 ```
 
 
 
-## 6 Schools
+### 6 Pts to Sales
 
 
 ```{r schools}
@@ -1128,9 +1192,6 @@ school.elementary.dist =
       glue('https://s3.amazonaws.com/gm-zdm/gj/sch/sch_es_08_{district_id}_{school_id}.geojson'))
 
 
-school.elementary.pts = 
-  st_read('data/col_elementary_points.geojson') %>%
-  st_transform(col_crs) 
 
 
 
@@ -1141,19 +1202,19 @@ ggplot() +
   #   aes(fill=incorporated), 
   #   color='transparent') + 
   geom_sf(
-    data = boulder.nhoods.z, 
-    aes(fill=Name), 
+    data = boulder.ele.cach, 
+    aes(fill=school_name), 
     color='transparent') + 
-  geom_sf(data = boulder.cities, fill = 'transparent', color='grey',
-          lwd=.1, linetype = "dashed") +
-  geom_sf(data = boulder.county,
-          fill = 'transparent', color='black',
-          lwd=1) +
-  geom_text(
-    data=boulder.cities.labels, check_overlap=TRUE,
-    size = ifelse(boulder.cities.labels$size==2,2.5,2),
-    fontface='bold', color='black',
-    aes(x=lon,y=lat, label=name)) +
+  geom_cities() +
+  geom_county() +
+  geom_sf(
+    data = boulder.ele.pts
+  ) + 
+  # geom_text(
+  #   data=boulder.cities.labels, check_overlap=TRUE,
+  #   size = ifelse(boulder.cities.labels$size==2,2.5,2),
+  #   fontface='bold', color='black',
+  #   aes(x=lon,y=lat, label=name)) +
   theme(legend.position = "none")+ 
   mapTheme()
 

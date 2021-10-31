@@ -28,7 +28,7 @@ library(caret)
 library(tidycensus)
 library(sf)
 library(sp)
-library(tmap)S
+library(tmap)
 #library(ggrepel)
 library(tigris)
 library(stargazer)
