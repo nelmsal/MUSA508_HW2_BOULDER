@@ -135,19 +135,20 @@ boulder.cities =
 geom_county = function(
   sf_county = boulder.county,
   fill = 'transparent', color='black',
-  lwd=1
+  lwd=1, ...
   ){
     c_plot = geom_sf(data = sf_county, fill = fill, color=color,
-          lwd=lwd)
+          lwd=lwd, ...)
     return(c_plot)}
 
 geom_cities = function(
   sf_cities = boulder.cities,
   fill = 'transparent', color='grey',
-  lwd=.1, linetype = "dashed"
+  lwd=.1, linetype = "dashed",
+  ...
   ){
     c_plot = geom_sf(data = sf_cities, fill = fill, color=color,
-          lwd=lwd,linetype = linetype)
+          lwd=lwd,linetype = linetype, ...)
     return(c_plot)}
   
 ```
@@ -193,15 +194,31 @@ ggplot() +
   #   color='transparent') + 
   geom_sf(
     data = boulder.nhoods, 
-    aes(fill=nhood_id), 
-    color='grey50') + 
-  geom_cities() + 
+    aes(fill=neighborhood), 
+    color='transparent',
+    lwd=0.1) + 
+  scale_fill_hue() + 
+  #geom_cities(lwd=0.1, color='grey25') + 
+  geom_cities(
+    boulder.cities,
+    lwd=ifelse(boulder.cities$incorporated=='city', .75,.1), color='grey50', linetype='solid'
+    ) + 
   geom_county() + 
   geom_text_sf(sf_to_labels(
-    boulder.cities, 
+    boulder.cities %>% filter(incorporated=='city'), 
     'name')) + 
-   theme(legend.position = "none") + 
+  theme(legend.position = "none") + 
   mapTheme()
+
+bw = function(x) 2 * IQR(x) / length(x)^(1/3)
+ggplot() +
+  geom_histogram(
+    data=boulder.nhoods,
+    aes(x=house_count, fill=neighborhood),
+    binwidth = bw(boulder.nhoods$house_count),
+    boundary=1,
+    show.legend = FALSE) +
+  xlim(0,250) + plotTheme()
 
 ```
 
@@ -270,8 +287,6 @@ ID_fields = c(
   "neighborhood",
   "nhood_id"
   )
-
-
 
 boulder.data = boulder.sales[,c(
   ID_fields,

@@ -35,6 +35,7 @@ library(stargazer)
 library(ggcorrplot)
 library(glue)
 library(rvest)
+library(spatstat)
 
 mapTheme <- function(base_size = 12) {
   theme(
