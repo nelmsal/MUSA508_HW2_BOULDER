@@ -183,6 +183,15 @@ boulder.cities =
   st_read('data/boulder_cities.geojson') %>%
   st_sf(., crs=col_crs)
 
+boulder.cities.incorp = 
+  boulder.cities %>% filter(incorporated=='city') %>%
+  mutate(in.city = 1)
+
+boulder.sales = 
+  boulder.sales %>%
+  st_join(., boulder.cities.incorp %>% select(in.city)) %>%
+  mutate(in.city = replace_na(in.city, 0))
+
 ```
 
 ## B. Neighborhoods -- Voting Precincts
@@ -511,6 +520,8 @@ for (col in service_variables){
   var.df = add_v(col, 0, "service")
 }
 spatial_variables = c(
+    ## in a city
+    'in.city',
     ## census tract median gross rent (rent & utilities)
     'tract.rent',
     ## median household income

@@ -410,7 +410,7 @@ Figure 3 reaffirms the inner-correlation of some variables
 
 to measure difference of price in the variable's binary groups
 
-```{r }
+```{r binary_functions}
 
 round_str = function(str_num, digits=3) str_num %>% 
         as.numeric() %>%
@@ -945,7 +945,8 @@ var.ivs = c(
   
   # binary
   "build.hvac",
-  "build.bsmt.finished"
+  "build.bsmt.finished",
+  "in.city"
   
 )
 ```

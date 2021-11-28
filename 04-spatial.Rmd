@@ -11,13 +11,10 @@ In this section, the study will examine if the housing price predictions are spa
 
 [1]: <https://journals.sagepub.com/doi/pdf/10.1177/0363546513511052> "BD Owens, 'Location, Location, Location'"
 
-## 1. Spatially Visualizing the Price Prediction Model
+## 1. Spatially Visualizing Test Dataset & Training Model
 
-*1. Provide a map of your residuals for your test set*
-*2. Include a Moran’s I test*
+### A. Map of Predicted Prices & Errors in Test Dataset 
 
-### A. Map of Predicted Prices
-*Using the Price Prediction of All Homes in the dataset*
 
 ```{r map_all_predict, message=FALSE, warning=FALSE}
 
@@ -43,21 +40,21 @@ boulder.test.fishnet =
         count.homes   = sum(count.homes),
         MAE     = mean(price.abserror),
         ME  = mean(price.error),
+        MPE = mean(price.abserror / price),
         avg.price.predict = mean(price.predict),
         avg.price  = mean(price)
       ),
     on='id.fishnet'
   )%>%
-  mutate(count.homes = replace_na(count.homes, 0))
-
-
+  mutate(
+    count.homes = replace_na(count.homes, 0))
 
 Var1_map = var_cut_map(
   focus_sf = boulder.test.fishnet,
   var_field = "count.homes",
   focus_pal = "PuBu",
   pal_rev = TRUE,
-  var_breaks_nomax = c(0,1,5,15,50),
+  var_breaks_nomax = c(0,1,5,15),
   var_title = 'Count of Test Dataset',
   var_legend = 'Count of Homes\nin Test Dataset',
   var_num = 'A'
@@ -74,21 +71,18 @@ Var2_map = var_cut_map(
   var_num = 'B'
 )
 
-focus_field = 'ME'
-boulder.test.fishnet[[focus_field]] %>% hist(breaks='fd')
-boulder.test.fishnet[[focus_field]] %>% summary()
-
-min_me = max(boulder.test.fishnet[['ME']])
+min_me = min(boulder.test.fishnet[['ME']])
 Var3_map = var_cut_map(
   focus_sf = boulder.test.fishnet,
   var_field = 'ME',
   focus_pal = "Green-Orange",
   pal_rev = TRUE,
-  var_breaks_nomax = c(min_me, -1000000, -250000, -50000, 50000, 250000),
+  var_breaks_nomax = c(min_me, -1000000, -250000, -50000, 50000, 250000,1000000),
   var_title = "Mean Errors",
-  var_legend = 'Mean of Predicted Price\nsubtracted by Price',
+  var_legend = 'Mean of Observed Price\nsubtracted by Predicted Price',
   var_num = 'C'
 )
+
 
 Var4_map = var_cut_map(
   focus_sf = boulder.test.fishnet,
@@ -106,35 +100,41 @@ grid.arrange(
   Var2_map,
   Var3_map,
   Var4_map,
-  ncol=2
+  ncol=2,
+  top = glue('Map {map_num}: Home Value Predictions\nTraining Model on Test Dataset')
 )
 ```
 
 
-### B. Map of Prediction Errors
-*Using the Residuals of the Test Set Prediction*
 
-```{r map_test_error}
+``` {r MAE}
+fig_num = 5
+title = glue('Figure {fig_num}: Test Error & Observed Sales Prices')
 
-library(modelr)
+# grid.arrange(ncol=2,
+#   ggplot(data = boulder.test.fishnet) +
+#     geom_point(aes(x = avg.price, y = ME)) +
+#     labs(title=title,
+#       subtitle = "Price & ME") +
+#     plotTheme(),
+#   
+#   ggplot(data = boulder.test.fishnet) +
+#     geom_point(aes(x = avg.price, y = MAE)) +
+#     labs(title='', subtitle = "Price & MAE") +
+#     plotTheme()
+# )
 
-boulder.test$price.error = 
-  boulder.test %>%
-  as_data_frame() %>%
-  add_residuals(., boulder.train.lm, var = "resid") %>%
-  dplyr::select(resid, Folio) %>%
-  pull(resid)
+# ggplot(data = boulder.test.fishnet) +
+#     geom_point(aes(x = MPE, y = avg.price)) +
+#     labs(title='', subtitle = "Price & MAE") +
+#     plotTheme()
 
-ggplot() +
-geom_sf(data = XXXX, fill = "gray90", colour = "XXX") +
-    geom_sf(data = XXXX, fill = "XXXX", colour = "XXXX") +
-  geom_sf(data = boulder.test, aes(colour = q5(resid))) +
-  scale_colour_manual(values = palette5) +
- labs(title = "Figure XXX: Test Set Residual Errors", subtitle = "XXXXX") +
-  mapTheme()
-
+# boulder.test %>%
+#   mutate(PE = (price.abserror / price)) %>% 
+#   filter(PE>3) %>% arrange(desc(PE))
 
 ```
+
 
 ## 2. Find Spatial Lag of Predictions
 *Using the Price Prediction and Location of All Homes in the dataset*

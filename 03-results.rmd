@@ -242,8 +242,8 @@ grid.arrange(ncol=2,
     plotTheme()
 )
 
-boulder.predict.0.cv %>% filter(price.ape>5) %>% 
-  arrange(price.ape) #%>% select_v()
+# boulder.predict.0.cv %>% filter(price.ape>5) %>% 
+#   arrange(price.ape) #%>% select_v()
 
 ```
 
