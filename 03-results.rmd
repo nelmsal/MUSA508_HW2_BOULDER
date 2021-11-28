@@ -1,4 +1,4 @@
-# 3. Linear Results 
+# 3. Linear Model Results 
 
 ## A.	Methods
 
