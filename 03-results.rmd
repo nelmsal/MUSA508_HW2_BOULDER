@@ -1,9 +1,7 @@
 # 3. Linear Results 
 
-## A.	Method
-*Briefly interpret each in the context of the Zillow use case*
+## A.	Methods
 
-### 1. Interpret Results
 
 
 ## B.	Partition Training & Test Sets
@@ -13,15 +11,17 @@ Before developing the model, this study splits the dataset of known home prices 
 
 ```{r setup_train_test_partition}
 
+
+
 # produces:
 #   boulder.train
 #   boulder.test
 
-select_v = function(sf, variable_names=c('price', boulder.iv)){
+select_v = function(sf, variable_names=c('price', var.ivs)){
   return(sf %>% st_drop_geometry(.) %>%
              select(variable_names))}
 
-select_iv = function(sf, variable_names=boulder.iv){
+select_iv = function(sf, variable_names=var.ivs){
   return(sf %>% st_drop_geometry(.) %>%
              select(variable_names))}
 
@@ -31,15 +31,22 @@ select_iv = function(sf, variable_names=boulder.iv){
 # lances factors for categories across the training and test sets. Ken mentions this in Chapter 3 of the textbook
 
 inTrain = createDataPartition(
-              y = do.call(paste, c(
-                boulder.predict.0 %>% select_iv(.)
-                , sep=" ")), 
+              y = boulder.predict.0 %>% pull(price), 
               p = .75, list = FALSE)
 
-boulder.train = boulder.predict.0[inTrain,]
+# inTrain = createDataPartition(
+#               y = do.call(paste, c(
+#                 boulder.predict.0 %>% select_iv(.)
+#                 , sep=" ")), 
+#               p = .75, list = FALSE)
 
-boulder.test  = boulder.predict.0[-inTrain,]  
+boulder.train = 
+  boulder.predict.0[inTrain,] %>% 
+  select(c(vars.admin,var.dv,var.ivs))
 
+boulder.test = 
+  boulder.predict.0[-inTrain,] %>% 
+  select(c(vars.admin,var.dv,var.ivs))
 
 ```
 
@@ -52,22 +59,102 @@ With a training set, the study can now build its initial training linear model [
 
 ```{r setup_train_lm}
 
-independent_variables = boulder.iv %>% sort() %>% list()
+#var.ivs = var.ivs %>% list()
+var.dv = var.dv
 
-variables_str = 
-  do.call(paste, c(boulder.iv %>% list(), collapse = "+"))
+var.ivs.str = 
+  do.call(paste, c(var.ivs %>% list(), collapse = "+"))
 
 fm_equation = as.formula(paste(
-  dependent_variable, variables_str, sep="~"))
+  var.dv, var.ivs.str, sep="~"))
 
 print(fm_equation)
-
 
 ##################
 lm.train = 
   lm(
     fm_equation, 
-    data = boulder.train %>% select_v(.))
+    data = boulder.train %>% select_v(.)
+    )
+```
+
+
+### 2. Training Summary Table
+
+The results of our model on the training set are presented below. 
+
+``` {r table_train_summ}
+tab_num = 3
+# stargazer(
+#   lm.train, 
+#   type="text", digits=1, 
+#   title="Table 2: Boulder Training Data Regression Output")
+
+format_nums = function(num_input, digits = 2) ifelse(abs(num_input)>999,
+                      count_format(num_input),
+                      round_thresh(num_input, digits = digits,int_check = TRUE))
+
+lm.train.summ = 
+  lm.train %>%
+  tidy() %>%
+  transmute(
+    Variable = 
+      ifelse(term %in% vars.ivs.binary,
+             paste(term, '(X = 1)'),
+             term
+        ), 
+    Estimate = format_nums(estimate, digits = 3) %>%
+      paste('$', .),
+    std.error = format_nums(std.error) %>%
+      paste('$', .),
+    t.value = format_nums(statistic),
+    p.value = p.value %>% round_thresh()
+  )
+
+lm.train.summ %>%
+  kable(caption = 
+          glue('Table {tab_num}: Training Model Summary'),
+        align = 'lrrrr') %>%
+  kable_styling()
+```
+
+The R-Squared value tells us the percentage of our model that accounts for the variance in house sales price, of which it is XXX (indicating hhgow well our model explains the variation), and the low p-value of the f-test, p<0.0001 indicates that our variables are statistically significant, indicating high levels of confidence that the relationship between predictor variables and house sales price is not zero (indicating lack of predicting ability). 
+
+``` {r table_train_err}
+
+tab_num = 4
+
+lm.train %>% glance() %>%
+  transmute(
+    `RSE` = format_nums(sigma) %>%
+      paste('$', .),
+    `df ` = format_nums(df.residual),
+    `Multiple` = format_nums(r.squared, digits=4),
+    `Adjusted` = format_nums(adj.r.squared, digits=4),
+    `stat` = format_nums(statistic, digits=1),,
+    `df` = format_nums(df),
+    p.value = p.value %>% round_thresh()
+  ) %>%
+  kable(caption = 
+          glue('Table {tab_num}: Training Model Fit & Significance Terms'),
+        align = 'lrrrr') %>%
+  kable_styling() %>%
+  add_header_above(
+    header = c(
+      'Residual Standard Error'=2,
+      'R-squared' = 2,
+      'F-statistic' = 2,
+      ' ' = 1
+    ))
+```
+
+### 3. Test Errors Table
+
+The error summarized below indicates how well our model is predicting house sales value compared to known house sales values, with the error being that difference (i.e., the residuals). This will tell us how accurate our model is, with an error of XXXX, indicating....XXX
+
+``` {r table_train_error}
+
+tab_num = 5
 
 boulder.test =
   boulder.test %>%
@@ -83,83 +170,86 @@ boulder.test =
     ) 
 
 # Mean Error
-test.error = 
+test.ME = 
   mean(boulder.test$price.error, na.rm = T)
 
 # Mean Absolute Error (MAE)
-test.abserror = 
+test.MAE = 
   mean(boulder.test$price.abserror, na.rm = T)
 
 # Mean Absolute Percentage Error (MAPE)
-test.ape = 
+test.MAPE = 
   mean(boulder.test$price.ape, na.rm = T)
 
+# Mean Squared Error (MSE)
+test.MSE = 
+  mean((boulder.test$price.error)^2)
+
+# Root Mean Squared Error (RMSE)
+test.RMSE = 
+  boulder.test$price.rmse[1]
+
+
 # Mean Prediction
-test.predict = 
+test.mean.prediction = 
   mean(boulder.test$price.predict, na.rm = T)
 
-```
+########
 
-
-### 2. Results
-
-#### A. Summary Table
-*Provide a polished table of mean absolute error and MAPE for a single test set.*
-*Check out the “kable” function for markdown to create nice tables.*
-
-
-The results of our model on the training set are presented below. The R-Squared valuu tells us the percentage of our model that accounts for the variance in house sales price, of which it is XXX (indicating hhgow well our model explains the variation), and the low p-value of the f-test, p<0.0001 indicates that our variables are statistically significant, indicating high levels of confidence that the relationship between predictor variables and house sales price is not zero (indicating lack of predicting ability). 
-
-``` {r table_train_lm}
-
-stargazer(
-  lm.train, 
-  type="text", digits=1, 
-  title="Table 2: Boulder Training Data Regression Output", 
-  out = "results/Training_LM.txt")
-
-summary(lm.train)
-```
-
-#### B. Errors Table
-
-The error summarized below indicates how well our model is predicting hosue sales value compared to known house sales values, with the error being that difference (i.e., the residuals). This will tell us how accurate our model is, with an error of XXXX, indicating....XXX
-
-``` {r table_train_error}
-
-
+data.frame(
+  N = nrow(boulder.test) %>% format_nums(),
+  `MAE` = test.MAE %>% format_nums()%>%
+      paste('$', .),
+  `MAPE` = 
+    (test.MAPE * 100) %>% round_thresh(
+      ., digits = 3, int_check = FALSE) %>%
+      paste(., '%'),
+  `RMSE` = test.RMSE %>% format_nums()%>%
+      paste('$', .)
+  )%>%
+  kable(caption = 
+          glue('Table {tab_num}: Training Model Fit & Significance Terms'),
+        align = 'rrrr') %>%
+  kable_styling() #%>%
+  # add_header_above(
+  #   header = c(
+  #     'Residual Standard Error'=2,
+  #     'R-squared' = 2,
+  #     'F-statistic' = 2,
+  #     ' ' = 1
+  #   ))
 
 ```
 
-
-#### C. Plot Training Price over Error
-
+### 4. Plot Sales Price and Error
 
 ```{r plot_train_lm}
 
 
-library(gridExtra)
-
+fig_num = 5
+title = glue('Figure {fig_num}: Test Error & Observed Sales Prices')
 
 grid.arrange(ncol=2,
   ggplot(data = boulder.test) +
     geom_point(aes(x = price, y = price.abserror)) +
-    labs(subtitle = "Observed Sale Price and Absolute Error") +
+    labs(title=title,
+      subtitle = "Price & Absolute Error") +
     plotTheme(),
   
   ggplot(data = boulder.test) +
     geom_point(aes(x = price, y = price.ape)) +
-    labs(subtitle = "Observed Sale Price with Absolute Percent Error") +
+    labs(title='', subtitle = "Price & Absolute Percent Error") +
     plotTheme()
 )
 
+boulder.predict.0.cv %>% filter(price.ape>5) %>% 
+  arrange(price.ape) #%>% select_v()
+
 ```
 
+## D.	K-Fold Cross-Validation Model
 
-
-## D.	Test Model
-
-### 1. Create K-Fold Cross-Validation Model
+### 1. Create CV Model with 100 Folds
 *Provide the results of your cross-validation tests -- 100 folds.* 
 *This includes mean and standard deviation MAE.*
 
@@ -183,80 +273,98 @@ train.cv =
     method = "lm", 
     trControl = train.control, na.action = na.pass)
 
-train.cv
-
 
 ```
 
 
-### 3. Run K-Fold Cross-Validation Model
-*Using the Un-Observed House Dataset*
+### 2. Table of Resampled Cross-Validation
 
-```{r predict_train_cv}
+In the table below, we see that for Fold 100, we have an r-Squared value of XXX and a RMSE of XXX (compare it to RMSE and R2 of model). 
 
-# training.results = 
-#   data.frame(
-#     fm = c()
-#     
-#   )
+``` {r table_train_cv}
+
+tab_num = 6
 
 boulder.predict.0.cv =
   boulder.predict.0 %>%
+  select_v() %>%
   mutate(
-    regression     = "Baseline Regression",
+    regression     = "Final CV Regression",
     price.predict  = predict(train.cv, .), 
     
     # Residual
     price.error    = price.predict - price, 
     price.abserror = abs(price.predict - price), 
-    price.ape      = price.abserror / price
+    price.ape      = (price.abserror / price),
     
+    price.SE = (price.error)^2,
+    price.rmse  = sqrt(mean(price.SE))
+  )
+
+train.cv.rs = train.cv$resample
+train.cv.final = train.cv$finalModel
+
+train.cv.100_final = 
+  rbind(
+    data.frame(
+      Model = c('Training Model'),
+      Dataset = c("Testing (25%)"), 
+      MAE.mean = test.MAE %>% 
+        format_nums() %>% paste('$', .),
+      MAE.sd   = '',
+      RMSE.mean = test.RMSE %>%
+        format_nums() %>% paste('$', .),
+      RMSE.sd   = '',
+      R2.mean = glance(lm.train)$r.squared %>% 
+        format_nums(., digits=4),
+      R2.sd   = ''
+    ),
+    data.frame(
+      Model = "100-Folds CV", 
+      Dataset = "Training (75%)",
+      MAE.mean = train.cv.rs$MAE %>% mean() %>% 
+        format_nums() %>% paste('$', .),
+      MAE.sd   = train.cv.rs$MAE %>% sd() %>% 
+        format_nums() %>% paste('$', .),
+      RMSE.mean = train.cv.rs$RMSE %>% mean() %>% 
+        format_nums() %>% paste('$', .),
+      RMSE.sd   = train.cv.rs$RMSE %>% sd() %>% 
+        format_nums() %>% paste('$', .),
+      R2.mean = train.cv.rs$Rsquared %>% mean() %>% 
+        format_nums(., digits=4),
+      R2.sd   = train.cv.rs$Rsquared %>% sd() %>% 
+        format_nums(., digits=4)
+    ),
+    data.frame(
+      Model = c('Final CV'),
+      Dataset = c("Observed House Sales"), 
+      MAE.mean = boulder.predict.0.cv$price.abserror %>% mean() %>% 
+        format_nums() %>% paste('$', .),
+      MAE.sd   = '',
+      RMSE.mean = boulder.predict.0.cv$price.rmse[1] %>%
+        format_nums() %>% paste('$', .),
+      RMSE.sd   = '',
+      R2.mean =  glance(train.cv.final)$r.squared %>% 
+        format_nums(., digits=4),
+      R2.sd   = ''
     )
+  )
 
 
-fold75 = train.cv$control$indexOut$Resample075
-
-boulder.predict.0.reg75 =
-  boulder.predict.0.cv[fold75, c("price", "price.predict")] %>%
-  mutate(
-    price.error = price.predict - price, 
-    price.abserror = abs(price.predict - price), 
-    price.ape = price.abserror / price
-    ) %>% 
-  filter(price < 5000000) 
-
-### ???
-train.cv.rs.min = train.cv$resample[75,]
-### ???
-train.cv.rs.min$MAPE = mean(boulder.predict.0.reg75$price.ape)
+train.cv.100_final %>%
+  kable(
+    caption = glue("Table {tab_num}: Regression Results of One Test Set"),
+    col.names = c('Model', 'Dataset', 'Mean', 'SD', 'Mean', 'SD','Mean', 'SD')) %>%
+  kable_styling() %>%
+  add_header_above(
+    header=c(' ' = 2, 'MAE'=2, 'RMSE'=2, 'R-Squared'=2)
+  ) %>%
+  footnote(alphabet = 
+             c(
+               "Final Model's Mean's columns are just the single statistic observation"
+               ))
 
 
-round_df = function(x, digits) {
-    numeric_columns = sapply(x, mode) == 'numeric'
-    x[numeric_columns] =  round(x[numeric_columns], digits)
-    x
-}
-
-train.cv.rs.min = round_df(train.cv.rs.min, 2)
-
-
-train.cv.rs.min = train.cv$resample[75,]
-
-
-```
-
-### 3. Table of Resampled Cross-Validation
-
-In the table below, we see that for Fold075, we have an r-Squared value of XXX and a RMSE of XXX (compare it to RMSE and R2 of model). 
-
-``` {r table_train_cv}
-
-train.cv.rs.min %>%                     
-  gather(Variable, Value) %>%
-  group_by(Variable) %>%
-    spread(Variable, Value) %>%
-  kable(caption = "Table XXX: Regression Results of One Test Set") %>%
-    kable_classic(full_width = F, html_font = "Cambria")
 
 ```
 
@@ -267,15 +375,14 @@ The histogram below shows the distribution of mean average error across the 100 
 
 ```{r histogram_train_cv_MAE}
 
+fig_num = 6
+
 ggplot(train.cv$resample, aes(x=MAE)) +
   geom_histogram() +
-  labs(title = "Figure XX: Mean Average Error in Cross Validation Tests") +
+  labs(title = glue("Figure {fig_num}: Mean Average Error in Cross Validation Tests")) +
   plotTheme()
 
 ```
-
-
-
 
 ## E. Model Results
 *Is your model generalized to new data?*
@@ -287,10 +394,15 @@ ggplot(train.cv$resample, aes(x=MAE)) +
 ```{r setup_all_predict}
 
 boulder.predict = 
-  boulder.data %>%
+  rbind(
+    boulder.predict.0[, colnames(boulder.predict.1)],
+    boulder.predict.1
+  ) %>%
   mutate(
-    price.predict = 
-      predict(train.cv, .)
+    regression      = "Final Regression",
+    price.predict   = predict(train.cv, .)) %>%
+  filter(
+    price<price_max_threshold
     )
     
 ```
@@ -299,5 +411,25 @@ boulder.predict =
 *Plot predicted prices as a function of observed prices*
 
 ``` {r plot_all_predict_real}
+
+
+fig_num = 7
+title = glue('Figure {fig_num}: Test Error & Observed Sales Prices')
+
+line_min = min(max(boulder.predict$price), max(boulder.predict$price.predict))
+
+ggplot() +
+    # geom_line(data=data.frame(
+    #     x=c(0,line_min),
+    #     y=c(0,line_min)), 
+    #     aes(x=x,y =y), 
+    #             linetype = "dashed", size=.75, color='grey50') + 
+    geom_point(data = boulder.predict, aes(x = price, y = price.predict)) +
+    geom_smooth(data = boulder.predict, aes(x = price, y = price.predict), method = lm) + 
+    labs(title=title,
+      subtitle = "Price & Predicted Price") +
+    xlim(min(boulder.predict$price,0), max(boulder.predict$price)) + 
+    ylim(min(boulder.predict$price.predict,0), max(boulder.predict$price.predict)) + 
+    plotTheme()
 
 ```

@@ -1,3 +1,35 @@
+---
+title: "Assignment 2: Boulder County House Prices Algorithm"
+author: "Gianluca Nelms and Alex Mangiapane"
+date: "10/22/2021"
+output:bookdown::gitbook:
+    code_folding: hide
+    fig_caption: yes
+    toc: yes
+editor_options: 
+  markdown: 
+    wrap: sentence
+  #chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+library(bookdown)
+knitr::opts_chunk$set(
+  echo=TRUE,
+  include=TRUE,
+  warning=FALSE,
+  messages=FALSE,
+  fig.width = 8,
+  fig.keep = 'all',
+  collapse=TRUE,
+  cache=TRUE, 
+  autodep=TRUE,
+  root.dir = getwd()
+  )
+
+options(tigris_class = "sf")
+```
+
 # 0. Introduction
 
 *What is the purpose of this project?*
@@ -36,6 +68,27 @@ library(ggcorrplot)
 library(glue)
 library(rvest)
 library(spatstat)
+library(cowplot)
+library(gridExtra)
+library(ggpubr)
+library(broom)
+
+mile = 5280
+sqmile = 27878000
+
+str_replace_vector = function(string, replace, replacement='') 
+  str_replace_all(string, setNames(rep(replacement, length(replace)), replace))
+
+count_format = function(col) format(col, digits=0, big.mark = ",")
+proportion_format = function(col, digits=2) (col*100) %>%
+      round(., digits=digits) %>% paste(., '%',sep='')
+
+
+count_unique = function(raw_vector) print(c(length(raw_vector), length(unique(raw_vector))))
+
+ceiling_n = function(num, by=10) ceiling(num/by) * by
+ceiling_10 = function(num) ceiling_n(num, by=10)
+ceiling_5 = function(num) ceiling_n(num, by=5)
 
 mapTheme <- function(base_size = 12) {
   theme(
@@ -83,25 +136,7 @@ plotTheme <- function(base_size = 12) {
 }
 
 
-plot_limits = function(
-  poly.geometry = boulder.cities$geometry,
-  # buffer between plot's limits and the geometry 
-  # (in unit of geometry column)
-  buffer = 0
-){
-  # creates bounding box
-  poly.bbox =
-    poly.geometry %>% st_union() %>%
-    # buffers the geometry so the ultimate plot has margins
-    st_buffer(buffer) %>%
-    st_bbox()
-  return(
-    # returns the 'coord_sf' function which you can add to any plot
-    coord_sf(
-      xlim = c(poly.bbox['xmin'], poly.bbox['xmax']),
-      ylim = c(poly.bbox['ymin'], poly.bbox['ymax']),
-      crs = st_crs(poly.geometry)
-  ))}
+
 
 sf_to_labels = function(
   sf_focus, label_field
@@ -111,9 +146,9 @@ sf_to_labels = function(
     st_centroid(., of_largest_polygon = TRUE) %>% 
     mutate(
       lon = map_dbl(geometry, 
-                    ~st_centroid(.x, of_largest_polygon = TRUE)[[1]]),
+                    ~st_centroid(.x, of_largest_polygon = TRUE, quiet = TRUE,)[[1]]),
       lat = map_dbl(geometry, 
-                    ~st_centroid(.x, of_largest_polygon = TRUE)[[2]])
+                    ~st_centroid(.x, of_largest_polygon = TRUE, quiet = TRUE,)[[2]])
     )
   
   sf.focus.labels$label = sf.focus.labels[[label_field]]
@@ -128,6 +163,39 @@ sf_to_labels = function(
 
   return(sf.focus.labels %>% select(label, lon, lat))
 }
+
+get_labels = function(
+  cut_breaks, round_digit = 0, bucket_diff=1, first_start_range=0, last_end_range=TRUE, input_end_range='', bucket_suffix='', bucket_prefix=''
+){
+  labels = 
+    cut_breaks %>% gsub(",", " to ", .) %>% 
+    str_sub(., 2, -2) %>% unique(.)
+  
+  list_str = function(l, remove=0){
+      format(round(as.numeric(l), digit=round_digit)-remove, big.mark=",")}
+  
+  for (i in seq(from=1,to=length(labels))){
+    bucket_range = labels[i] %>% str_split(., " to ")
+    
+    start_range = paste(bucket_prefix, list_str(bucket_range[[1]][1]))
+    end_range = paste(list_str(bucket_range[[1]][2], remove=bucket_diff), bucket_suffix)
+    
+    if (i == 1 & first_start_range != ''){
+      start_range = paste(bucket_prefix, list_str(first_start_range))}
+    if (i == length(labels) & input_end_range!=''){
+      end_range=paste(list_str(input_end_range), bucket_suffix)
+      last_end_range=TRUE
+      }
+    if (i == length(labels) & last_end_range==FALSE){end_range='+'}
+    
+    bucket = paste(
+        start_range, 
+        'to', 
+        end_range) %>% str_trim()
+    labels[i] = bucket}
+    
+  return(labels)
+  }
 
 geom_text_sf = function(
   sf.focus.labels,
@@ -151,14 +219,14 @@ mutate_by <- function(.data, group, ...) {
 }
 
 plot_limits = function(
-  poly.geometry = '',
+  data = '',
   # buffer between plot's limits and the geometry 
   # (in unit of geometry column)
   buffer = 0
 ){
   # creates bounding box
   poly.bbox =
-    poly.geometry %>% st_union() %>%
+    data %>% st_union() %>%
     # buffers the geometry so the ultimate plot has margins
     st_buffer(buffer) %>%
     st_bbox()
@@ -167,7 +235,7 @@ plot_limits = function(
     coord_sf(
       xlim = c(poly.bbox['xmin'], poly.bbox['xmax']),
       ylim = c(poly.bbox['ymin'], poly.bbox['ymax']),
-      crs = st_crs(poly.geometry)
+      crs = st_crs(data)
   ))}
 
 ```

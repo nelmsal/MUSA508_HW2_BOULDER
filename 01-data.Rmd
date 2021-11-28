@@ -1,9 +1,20 @@
-# 1. Data
-## 1.A Gathering Data
-*Briefly describe your methods for gathering the data.*
 
-### 1.A.1 Import Data
-```{r import_sales}
+The first step in creating a model is organizing the appropriate dependent ('house prices') and independent variables. In this section, we simply import, attach, and engineer variables. In the next step we will actually Select Features to model, based on the Exploratory Data Analysis' independence & correlation tests. 
+
+In order to predict the sales values of Boulder County homes, we will be finding and engineering variables that describe: 
+1. the house's internal & building characteristics;
+2. nearby public services & amenities; and,
+3. relevant spatial processes & external attributes.
+
+# 1. Internal & Building Characteristics
+
+## A. Assessor's House Sales & Building Charactertics 
+
+The primary data set our team will be using is a collection of Boulder County House Sales from January 2019 to February 2021 (n = 11,364). These points, sales, and building characteristics were curated into a single data set by the Urban Spatial data team and the University of Pennsylvania's Department of Urban Spatial Analytics. However, the data originated from the sales, parcels, and building records of [Boulder County's Tax Assessor Office](https://www.bouldercounty.org/property-and-land/assessor/data-download/).
+
+On the local level, the Assessor's Parcel & Building data is the primary, and sometimes *only*, method of recording the population, built environment, and housing transactions. To emphasize, our team and model is only utilizing the Assessor's (1) Building Characteristics and (2) Sales properties that were provided to us -- as well as the (3) lot sizes found in the Assessor's Parcels & Land tables. This is an important clarification as our team is developing an model *independent* of Boulder County's Assessed Property Valuation Model and its predicted values -- even though we are using the same variables in our models.
+
+```{r vars_sales_import}
 print(getwd())
 col_crs = st_crs('ESRI:102653')
 
@@ -15,114 +26,154 @@ boulder.sales =
   st_transform(., col_crs) %>%
   mutate(
     toPredict = toPredict %>% sapply(., as.character)
-  )
-
-boulder.sales$lagPrice = 0
-
-boulder.variables = 
-  data.frame(
-# 0. Housing Sales Price
-    var_name=c("price"),
-    var_num=(0),
-    var_type=('Dependent'))
-
-add_v = function(vnme, vnum, vtype){
-  if(vnme %in% boulder.variables[['var_name']]){
-    print("didnt add since it is already in")
-    return(boulder.variables)
-    }
-  else{
-    return(rbind(boulder.variables,c(
-    vnme, vnum, vtype
-    )) %>% arrange(var_num))}}
-
+  ) %>%
+  rename(id.musa = MUSA_ID)
 
 ```
 
-### 1.A.2 Parcel Joins
+## B. Parcels
 
+In order to find the lot sizes of the housing sales, I joined the Home Sales points to the Tax Assessor Parcels through a (1) spatial join and a (1) tabular join on the shared 'address' field. It is important to use lot size in the model as it is a large share of a home's valuation. To save ~~some~~ *alot* of time and memory space, I pre-joined the Housing Sales and associated Tax Parcels to get the shared account id, ("id.acct"/"strap"), Parcels Numbers ("id.apn"/"parcelno"/"folio"), and lot sizes in square feet.
 
-```{r parcel}
+```{r vars_sales_lots}
+
+################
+# Original Location of Parcels
+## https://opendata-bouldercounty.hub.arcgis.com/datasets/parcels/explore
 
 # parcel_path =
 #   "./data/Boulder_Parcels_20211009.geojson"
-# boulder.parcel = st_read(parcel_path) %>%
-#   rename(ID = OBJECTID, APN=PARCEL_NO) %>%
-#   select(ID,APN) %>%
-#   st_transform(., col_crs) %>% # North Col State Plane Feet
-#   mutate(
-#     geometry = st_make_valid(geometry),
-#     area = st_area(geometry))
-# attributes(boulder.parcel$area) = NULL
-# boulder.parcel = boulder.parcel %>% filter(area>0)
-# 
-# address_path =
-#   "./data/Boulder_AddressPts_20211009.geojson"
-# boulder.address = st_read(address_path)%>%
-#   st_transform(., col_crs)
-# 
-# acct_path =
-#   "./data/Account_Parcels.csv"
-# boulder.parcel.acct = read.csv(acct_path)
-# 
-# build_path =
-#   "./data/Buildings.csv"
-# boulder.parcel.build = read.csv(build_path)
-# 
-# land_path =
-#   "./data/Land.csv"
-# boulder.parcel.land = read.csv(land_path)
-# 
-# owner_path =
-#   "./data/Owner_Address.csv"
-# boulder.parcel.owner = read.csv(owner_path)
+# boulder.p.all =
+#   st_read(parcel_path) %>%
+#   st_transform(col_crs)
 
-# permits =
-#   "./data/Permits.csv"
-# B.build = read.csv(build_path)
+##################
+# Original Location of Tax Assessor's Tables 
+## https://www.bouldercounty.org/property-and-land/assessor/data-download/
+## I only used these tables: Account & Parcel Numbers, Owners & Address, Buildings, & Land
+## I DID NOT use any tables with sales or valuation data
+
+boulder.p.join = 
+  read.csv("data/Boulder_Sales_Assessor_join.csv")
+
+boulder.sales = 
+  merge(
+    boulder.sales,
+    boulder.p.join,
+    on='id.apn'
+  ) %>% select(-X)
+```
+
+## C. Engineering Assessor Features
+
+Since our model will heavily focus on the house's building and internal characteristics, it will be important to engineer features from the source data. The engineering is primarily creating binary variables or re-configuring categorical/ordinal variables.
+
+In one instance, we engineered binary fields if the house had Air Conditioning Systems ("build.ac"), Heating Systems ("build.heatsys"), or both ("build.hvac"). 
+
+In another instance, the original assessor field of the amount of 'stories' in the building are empty. As a result, we estimated the stories based on (1) the Assessor's Design Codes & (2) narrowing down those ranges of stories based on a ratio of 'upstairs square footage' over 'main floor square footage'. If upstairs square footage has a significantly larger area than the main floor, then it likely has more than 2 floors.
+
+``` {r vars_sales_engineer}
+
+# boulder.sales %>% group_by(designCodeDscr) %>% 
+#   summarize(count = n(), unique(designCode)) %>% 
+#   arrange(count) %>% 
+#   st_drop_geometry()
+
+boulder.sales =
+  boulder.sales %>%
+  mutate(
+
+    build.main.sf = mainfloorSF,
+    build.stories = 
+      ifelse(
+        designCodeDscr %in% c('Bi-level', 'MULTI STORY- TOWNHOUSE'),
+        2,
+        ifelse(
+          designCodeDscr %in% c('Split-level'),
+          3,
+          ifelse(
+            designCodeDscr %in% c('2-3 Story'),
+            2.5,
+            ifelse(
+              designCodeDscr %in% c('1 Story - Ranch'),
+              1,
+              0
+            )))),
+    build.bsmt.finished = ifelse(
+      grepl(' FINISHED', bsmtTypeDscr),
+      1,
+      0),
+    build.garage.covered = ifelse(
+      carStorageType %in% c("GRA", "GRB", "GRD", "GRW", "GRF"),
+      1,
+      0)
+    )
+
+# analyzing if the 2-3 stories is larger
+boulder.up_down = 
+  boulder.sales %>% 
+  st_drop_geometry() %>%
+  filter(designCodeDscr=='2-3 Story' & build.main.sf>0) %>%
+  mutate(
+    build.upstairs.sf = TotalFinishedSF - mainfloorSF,
+    build.up_down.ratio = round(build.upstairs.sf/build.main.sf,2),
+    build.up_down.diff.sf = build.upstairs.sf-build.main.sf,
+    build.stories.fix = ifelse(
+      (build.up_down.ratio>1)&(build.up_down.diff.sf>100),
+      3,
+      2
+    ))
+
+boulder.up_down %>%
+  group_by(build.stories.fix) %>%
+  summarise(
+    mean.up_down.ratio = mean(build.up_down.ratio),
+    mean.diff.sf = mean(build.up_down.diff.sf),
+    count = n()
+    ) %>% arrange(count)
+
+boulder.sales[
+  (boulder.sales$designCodeDscr=='2-3 Story') & 
+  (boulder.sales$build.main.sf>0), 'build.stories'] = 
+  boulder.up_down %>% pull(build.stories.fix)
+
+boulder.sales = 
+  boulder.sales %>%
+  mutate(
+    build.quality = qualityCode,
+    build.year    = builtYear,
+    build.year.adj = EffectiveYear,
+    build.garage.sf = carStorageSF,
+    build.bsmt.sf   = bsmtSF,
+    build.house.sf  = TotalFinishedSF,
+    build.garage.sf = carStorageSF,
+    build.bedrooms  = nbrBedRoom,
+    build.rooms  = nbrRoomsNobath,
+    
+    build.baths.adj = nbrFullBaths + nbrThreeQtrBaths*.75 + nbrHalfBaths*.5,
+    build.baths   = nbrFullBaths + nbrThreeQtrBaths + nbrHalfBaths,
+    build.living.sf  = build.house.sf + ifelse(
+                        build.bsmt.finished==1, 
+                        build.bsmt.sf, 0),
+    build.ac      = ifelse(Ac %in% c(215,210), 1, 0),
+    build.heatsys = ifelse(
+      Heating %in% c(810,830,880,850, 820), 1, 0),
+    build.hvac    = ifelse(
+      (build.heatsys==1)&(build.ac==1),1,0)
+    
+  )
 
 ```
 
-### 1.A.3 Parcel Clean
+# 2. Public services & Amenities
 
-```{r parcel_clean}
+Our model also wants to incorporate external factors, with public services being important. 
 
-# OG_len = nrow(boulder.parcel%>% st_drop_geometry())
-# APN_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., APN))
-# ID_len = nrow(boulder.parcel %>% st_drop_geometry() %>% distinct(., ID, APN))
-# area_len = nrow(boulder.parcel[boulder.parcel$area>0,] %>% st_drop_geometry() )
-# 
-# print(OG_len)
-# print(OG_len-APN_len)
-# print(OG_len-ID_len)
-# print(OG_len-area_len)
-# 
-# # boulder.parcel[(boulder.parcel$area<=0)&(boulder.parcel$APN %in% dupe_APN),]
-# 
-# n_occur =
-#   data.frame(table(boulder.parcel$APN)) %>%
-#   rename(APN=Var1) %>% arrange(-Freq)
-# 
-# dupe_APN = n_occur[n_occur$Freq > 1,"APN"]
-# B.dupe =
-#   boulder.parcel[boulder.parcel$APN %in% dupe_APN,] %>% group_by(APN) %>%
-#   summarize(geometry = st_union(geometry))
-# 
-# boulder.parcel[(boulder.parcel$APN == "157505036006")&
-#         (boulder.parcel$area>0),]
-# 
-# boulder.county = boulder.parcel %>% st_union(.)
-# 
-# ggplot() +
-#   geom_sf(data=boulder.county, lwd=.1, color='lightgrey')
-# +
-#   geom_sf(data=boulder.parcel, lwd=.1) +
-#   geom_sf(data=B.dupe,
-#           fill='pink', color='red') +
-#   plot_limits(poly.geometry= B.dupe)
-```
+## A. County & City Boundaries
 
-``` {r boundaries}
+For administrating & visualizing variables, we import in Boulder County and city boundaries.
+
+``` {r vars_boundaries}
 
 boulder.county = 
   st_read('data/boulder_county.geojson') %>%
@@ -132,31 +183,13 @@ boulder.cities =
   st_read('data/boulder_cities.geojson') %>%
   st_sf(., crs=col_crs)
 
-geom_county = function(
-  sf_county = boulder.county,
-  fill = 'transparent', color='black',
-  lwd=1, ...
-  ){
-    c_plot = geom_sf(data = sf_county, fill = fill, color=color,
-          lwd=lwd, ...)
-    return(c_plot)}
-
-geom_cities = function(
-  sf_cities = boulder.cities,
-  fill = 'transparent', color='grey',
-  lwd=.1, linetype = "dashed",
-  ...
-  ){
-    c_plot = geom_sf(data = sf_cities, fill = fill, color=color,
-          lwd=lwd,linetype = linetype, ...)
-    return(c_plot)}
-  
 ```
 
+## B. Neighborhoods -- Voting Precincts
 
-### 1.A.8 Neighborhoods
+In order to spatially categorize the housing sales, we are using 2020 Boulder Voting Precincts as a form of neighborhood. Voting Precincts are apt at categorizing as they are roughly equally distributed. 
 
-```{r plot_sfs}
+```{r vars_nhoods, warning=FALSE}
 
 
 boulder.nhoods = 
@@ -169,145 +202,417 @@ boulder.sales =
   #select_if(!names(.) %in% c('neighborhood')) %>%
   st_join(., boulder.nhoods)
 
-boulder.sales %>%
-  group_by(neighborhood) %>%
-  summarize(
-    house_count = n()
-    )
-
 boulder.nhoods =
   boulder.nhoods %>%
   merge(
     .,
-    aggregate(boulder.sales$MUSA_ID,
+    aggregate(boulder.sales$id.musa,
             by=list(boulder.sales$neighborhood), FUN=length) %>%
       rename(neighborhood = Group.1, house_count=x),
     by = 'neighborhood', all.x=TRUE) 
 
 boulder.nhoods$house_count[is.na(boulder.nhoods$house_count)] = 0
 
-
-ggplot() + 
-  # geom_sf(
-  #   data = boulder.cities, 
-  #   aes(fill=incorporated), 
-  #   color='transparent') + 
-  geom_sf(
-    data = boulder.nhoods, 
-    aes(fill=neighborhood), 
-    color='transparent',
-    lwd=0.1) + 
-  scale_fill_hue() + 
-  #geom_cities(lwd=0.1, color='grey25') + 
-  geom_cities(
-    boulder.cities,
-    lwd=ifelse(boulder.cities$incorporated=='city', .75,.1), color='grey50', linetype='solid'
-    ) + 
-  geom_county() + 
-  geom_text_sf(sf_to_labels(
-    boulder.cities %>% filter(incorporated=='city'), 
-    'name')) + 
-  theme(legend.position = "none") + 
-  mapTheme()
-
-bw = function(x) 2 * IQR(x) / length(x)^(1/3)
-ggplot() +
-  geom_histogram(
-    data=boulder.nhoods,
-    aes(x=house_count, fill=neighborhood),
-    binwidth = bw(boulder.nhoods$house_count),
-    boundary=1,
-    show.legend = FALSE) +
-  xlim(0,250) + plotTheme()
+# bw = function(x) 2 * IQR(x) / length(x)^(1/3)
+# ggplot() +
+#   geom_histogram(
+#     data=boulder.nhoods,
+#     aes(x=house_count, color=neighborhood),
+#     binwidth = bw(boulder.nhoods$house_count),
+#     boundary=1,
+#     show.legend = FALSE) +
+#   labs(title = "Sale Observations per Voting Precincts") + 
+#   xlim(0,250) + plotTheme()
 
 ```
 
-### 1.A.9 Assorted Variable Creation
+## C. Elementary School's Ranks & Scores
 
-```{r assorted}
+The main public service feature our model is elementary school rankings and evaluation scores. 
 
-boulder.sales$nbrBaths =  
-  boulder.sales$nbrFullBaths + boulder.sales$nbrHalfBaths
+The rankings and scores are aggregated by schooldigger.com which aggregates testing, student, and classroom data for all Colorado schools. Then creates scores and ranks.
 
-# 3. Full Bathroom
-boulder.variables = add_v(
-  "nbrBaths",     3,    "Internal"
-)
+``` {r vars_elementary_import}
 
-# 1. Num of Bedrooms
-boulder.variables = add_v(
-  "nbrBedRoom",    1,    "Internal"
-)
-
-# 2. Main Square Foot
-boulder.variables = add_v(
-  "mainfloorSF",   2,    "Internal"
-)
-
-# N. Nearest Neighbor
-boulder.variables = add_v(
-  "lagPrice",      99,   "Spatial"
-)
-
-# 3. Built Year
-boulder.variables = add_v(
-  "EffectiveYear",   3,    "Internal"
-)
-
-boulder.sales %>% 
-  group_by(qualityCode) %>%
-  st_drop_geometry(.) %>%
-  summarize(qualityCodeDscr = first(qualityCodeDscr))
-
-# 5. Quality of House by accessor
-boulder.variables = add_v(
-  "qualityCode",   5,    "Internal"
-)
+boulder.schools = 
+  st_read('data/boulder_county_elementary.geojson') %>% 
+  st_transform(col_crs)
 
 ```
 
-### 1.A.10 Set Up boulder.data & 0/1 Partition
+To match the elementary schools to housing sales, we simply use a nearest neighbor function to match the closest school.
 
-variables are one of these types:
-1.	Internal characteristics (e.g. bedrooms)
-2.	amenities/public services (e.g. proximity to parks)
-3.	spatial structure (e.g. nearby prices)
+``` {r vars_elementary_nn}
+
+st_geom_ids = function(compare_sf, compare_id){
+  compare_geoms = compare_sf[,'geometry']
+  compare_ids = compare_sf[[compare_id]]
+  if (length(unique(compare_ids)) != length(compare_ids)){
+    warning("there are duplicate ids")
+    warning(length(compare_ids)-length(unique(compare_ids)))
+  }
+  rownames(compare_geoms) = compare_ids
+  return(compare_geoms)
+}
+
+st_nn_id_column = function(
+  focus_sf, compare_sf,
+  focus_id='', compare_id=''){
+  
+  #compare_geoms = st_geom_ids(compare_sf, compare_id)
+  
+  compare_geoms = compare_sf$geometry
+  compare_ids = compare_sf[[compare_id]]
+  
+  if (length(unique(compare_ids)) != length(compare_ids)){
+    warning("there are duplicate ids")
+    warning(length(compare_ids)-length(unique(compare_ids)))
+  }
+  
+  nn_focus_compare = 
+    st_nearest_feature(
+      focus_sf,
+      compare_geoms,
+      check_crs = TRUE
+      )
+  
+  nn_focus_ids = sapply(nn_focus_compare, function(i) compare_ids[i])
+  
+  return(nn_focus_ids)
+}
+
+boulder.sales$ele.nn.id =
+  st_nn_id_column(
+    boulder.sales, # 11,364 rows
+    boulder.schools, # 172 cols
+    #focus_id = 'id.musa',
+    compare_id = 'ele.id'
+  ) #%>%
+  #str_pad(., 4, pad = "0")
+
+boulder.sales$ele.nn.dist =
+  nndist(
+    boulder.sales$geometry %>% as.ppp(.), # 11,364 rows
+    boulder.schools$geometry %>% as.ppp(.) # 172 cols
+  )
+
+ele.dist = boulder.sales$ele.nn.dist / mile
+
+boulder.sales = 
+  boulder.sales %>%
+  merge(
+    .,
+    boulder.schools %>%
+      st_drop_geometry() %>%
+      rename(ele.nn.id = ele.id),
+    on = 'ele.nn.id',
+    all.x = T
+  )
+
+# length(boulder.sales$ele.nn.id %>% unique())
+# length(boulder.schools$ele.id %>% unique())
+
+ele.group = 
+  boulder.sales %>%
+  mutate(ele.nn.dist = ele.nn.dist/mile) %>%
+  group_by(ele.name) %>% 
+  st_drop_geometry() %>%
+  summarize(
+    count = n(),
+    dist.avg = round(mean(ele.nn.dist), 2))
+
+```
+
+The scores and ranks come for 2018-19 and 2020-21 school years. Since our sales are spread across 2019 to 2021, we will simply average the scores and ranks from each school year. 
+
+``` {r vars_elementary_engineer}
+
+boulder.sales = 
+  boulder.sales %>%
+  mutate(
+    ele.score = ((ele.score.2020 + ele.score.2018)/2),
+    ele.rank  = ((ele.rank.2018 + ele.rank.2020)/2)
+  )
+
+```
+
+# 3. Spatial Processes & External Attributes  
+## A. ACS Census Tracts 2019
+
+We are using ACS Census Tract data as the primary external variables that reflect the larger spatial patterns. The variables we pulled and engineered are Population Density, Housing Unit Density, Median Household Income, and Median Gross Rent.
+
+``` {r vars_acs}
+
+boulder.tracts.2019 =
+ get_acs(
+  year = 2019,
+  geography='block group',
+  state='08',
+  county='013',
+  variables=c(
+    # tot pop
+    'B01001_001',
+    # median rent
+    'B25064_001',
+    # median HH income
+    'B19013_001',
+    # House Units
+    'B25001_001'
+    ),
+  geometry=T
+  ) %>%
+  dplyr::select( -NAME, -moe) %>%
+  spread(variable, estimate) %>%
+  st_transform(col_crs) %>%
+  mutate_if(is.numeric, ~replace(., is.na(.), 0)) %>%
+  rename(
+    tract.pop   = B01001_001,
+    tract.rent  = B25064_001,
+    tract.HH.income = B19013_001,
+    tract.units = B25001_001
+  ) %>%
+  mutate(
+    tract.area.sqft = geometry %>%
+      st_make_valid() %>% st_area() %>%
+      as.numeric(),
+    tract.area.mile = tract.area.sqft/sqmile,
+    tract.units.density = tract.units/tract.area.mile,
+    tract.pop.density   = tract.pop/tract.area.mile
+  )
+
+boulder.sales =
+  st_join(
+    boulder.sales,
+    boulder.tracts.2019
+  )
+
+```
+
+# 4. Managing Data
+
+Before setting our data sets off for exploration and modelling, we will organize our variables, remove outliers, and selecting which houses to predict for.
+
+## A. Organizing Variables
+
+Our variables will be categorized by their role in the model (dependent or independent), housing descriptor categories, and data type. 
+
+``` {r vars_organize}
+
+var.df = 
+  data.frame(
+    var_name=c('id.musa'),
+    var_num=c(-1),
+    var_type=c('admin'),
+    data_type=c('id')
+    )
+
+drop_v = function(bad_var, return_df = var.df){
+  return(return_df[!(return_df$var_name %in% c(bad_var)),])
+}
+
+add_v = function(vnme, vnum=0, vtype='iv', dtype='', 
+                 return_df = var.df,
+                 og_df = boulder.sales){
+  col_list = c(vnme, vnum, vtype, dtype)
+  
+  if(!(vnme %in% colnames(og_df))){
+    print(vnme)
+    stop("not in original dataframe")
+  }
+  
+  if(vnme %in% return_df$var_name){
+    print("already in variables")
+    return_df = drop_v(vnme)
+  }
+  return_df = 
+    rbind(return_df,col_list) %>% 
+      arrange(desc(var_name)) %>%
+      arrange(var_type)
+  row.names(return_df) = NULL
+  return(return_df)
+    }
+
+# sale price
+var.df = add_v('price', -1, "dv")
+
+admin_variables = 
+  c(
+    # id
+    'id.musa', 
+    # to predict housing price
+    'toPredict',
+    # address (NA's filled by assessor data)
+    'address',
+    # city or county
+    'city',
+    # voting precinct with local neighborhood names 
+    'nhood_id',
+    # neighborhood name of voting precinct
+    'neighborhood')
+
+for (col in admin_variables){
+  var.df = add_v(col, -2, "admin")
+}
+
+internal_variables = c(
+    ## Year in which the building began construction.
+    'build.year',  
+    ## extensive modern remodeling moves the built years to modern  
+    'build.year.adj',
+    ## Estimated Stories based on (1) the designCode, & 
+    ## (2) likelihood it is 2 or 3 stories based on ratio of mainfloor sf
+    'build.stories',
+    ## Total Bathrooms (fullBA + 3/4BA + 1/2BA)
+    'build.baths',
+    ## Total Bathrooms but Adjusted (fullBA + 3/4BA * .75 + 1/2BA * .5)
+    'build.baths.adj',
+    ## Number of bedrooms (non-mobile residential only).
+    'build.bedrooms',
+    ## Total number of rooms excluding bathrooms (non-mobile residential only). 
+    'build.rooms',
+    
+    ## Total number of finished square feet in above-grade floors
+    'build.house.sf',
+    ## Total Finished Living Space of House & Basement
+    'build.living.sf',
+    ## Square footage of the basement (finished & not-finished)
+    'build.bsmt.sf',
+    ## Square footage of the finished basement (based on bsmtType)
+    'build.bsmt.finished',
+    ## Square footage of the car storage (generally a garage or carport)
+    'build.garage.sf',
+    ## TRUE/FALSE a covered garage
+    'build.garage.covered',
+    
+    ## air conditioning system in the whole house (AcDscr)
+    'build.ac',
+    ## heating system in the whole house and not by room (HeatingDscr)
+    'build.heatsys',
+    ## both AC & Heating system
+    'build.hvac',
+    ## appraiser's building quality code
+    'build.quality',
+    
+    ## lot square footage 
+    'lot.sqft'
+)
+for (col in internal_variables){
+  var.df = add_v(col, 0, "internal")
+}
+
+service_variables = c(
+    ## schooldigger.com's aggregate elementary scores & state rankings 
+    ## based on test scores, teacher/student ratio, & school quality 
+    ## AVG of 20-21 & 18-19 
+    ## nearest elementary school to the house
+    'ele.score',
+    'ele.rank')
+for (col in service_variables){
+  var.df = add_v(col, 0, "service")
+}
+spatial_variables = c(
+    ## census tract median gross rent (rent & utilities)
+    'tract.rent',
+    ## median household income
+    'tract.HH.income',
+    ## housing units per square mile 
+    'tract.units.density',
+    ## population per square mile
+    'tract.pop.density'
+  )
+for (col in spatial_variables){
+  var.df = add_v(col, 0, "spatial")
+}
+```
+
+## B. Remove Outliers
+
+There appears to be instances of 'outliers' that will skew our results and likely cannot have variables created that account for their prices. The outliers are mostly input errors -- since the assessor's is collecting data from many agencies and stakeholders which leads to inconsistent data inputting. At the same time, there are simply anomalies (e.g. 1 house sold for \$31.5 million when the next highest is \$7.3 million) and potentially administrative deed transfers / house sales for low amounts of money (e.g. a house sold for \$10,000).
+
+```{r vars_outliers}
+
+# For the lot square footage, there are 3 house sales that had properties larger than 229 acres -- an outstanding size. If we run the pearson correlation with those outliers we get .09, but *without* the 3 outliers we get 0.18. A big change in correlation for only 3 observations of the actual 11,364.
+
+boulder.predict.0 = boulder.data %>%
+  filter(.,
+         (toPredict == '0'))
+
+price_max_threshold = 31500000
+price_instances = nrow(boulder.predict.0 %>% filter(price >= price_max_threshold))
+print(glue("Houses that sold for $31.5 million or more: {price_instances}"))
+price_min_threshold = 50000
+price_min_instances = nrow(boulder.predict.0 %>% filter(price <= price_min_threshold))
+print(glue("Houses that sold for $ 25 thousand or less: {price_min_instances}"))
+house_min_sf_threshold = 10
+sf_instances = nrow(boulder.predict.0 %>% filter(build.house.sf <= house_min_sf_threshold))
+print(glue("Houses that have less than {house_min_sf_threshold} square feet: {sf_instances}"))
+room_min_threshold = 0
+room_instances = nrow(boulder.predict.0 %>% filter(build.rooms <= room_min_threshold))
+print(glue("Houses with no rooms: {room_instances}"))
+bedroom_min_threshold = 0
+bed_instances = nrow(boulder.predict.0 %>% filter(build.bedrooms <= bedroom_min_threshold))
+print(glue("Houses with no bedrooms: {bed_instances}"))
+bathroom_min_threshold = 0
+bathroom_instances = nrow(boulder.predict.0 %>% filter(build.baths.adj == bathroom_min_threshold))
+print(glue("Houes with 0 bathrooms: {bathroom_instances}"))
+lot_max_acre_threshold = 10
+lot_max_sqft_threshold = lot_max_acre_threshold * 43560
+lot_instances = nrow(boulder.predict.0 %>% filter(lot.sqft >= lot_max_sqft_threshold))
+print(glue("Lots that are larger than {lot_max_acre_threshold} acres: {lot_instances}"))
+all_removed_instances = nrow(
+  boulder.predict.0 %>% filter(
+    (price >= price_max_threshold) |
+     (price <= price_min_threshold) |
+     (build.house.sf <= house_min_sf_threshold) |
+     (build.rooms <= room_min_threshold) |
+     (build.baths.adj <= bathroom_min_threshold) |
+     (build.bedrooms <= bedroom_min_threshold) |
+     (lot.sqft >= lot_max_sqft_threshold) 
+  ))
+print(glue("Houses with any of the above filters: {all_removed_instances}"))
+
+```
+
+Looking at the filters, we are only removing around 174 housing sales observations out of the total 11,264 (1.5 %). 
+
+## C. Partition Predicting & to Predict Data
 
 Split up the data between sales prices known, and the sales prices that are set to 0 to be predicted 
 
-```{r price_dataset}
+``` {r vars_partition}
 
-ID_fields = c(
-#   ID given by michael
-  "MUSA_ID",
-#   whether they should be predicted (1) or already have a price (0)
-  "toPredict",
-#   neighborhoods -- geometries & IDs based on voting districts 
-#     names based on zillow & city data
-  "neighborhood",
-  "nhood_id"
-  )
+boulder.data = 
+  boulder.sales[,
+  c(
+    var.df$var_name,
+    'geometry'
+  )] 
 
-boulder.data = boulder.sales[,c(
-  ID_fields,
-  boulder.variables$var_name,
-  'geometry'
-  )]
+var.ivs.all = var.df %>%
+  filter(!var_type %in% c('admin','dv')) %>%
+  pull(var_name)
 
-boulder.iv = boulder.variables[
-  !boulder.variables$var_num %in% c(0,99), 'var_name']
+vars.admin = var.df %>%
+  filter(var_type %in% c('admin')) %>%
+  pull(var_name)
 
-boulder.predict.0 <- boulder.data %>%
+var.dv = 'price'
+
+boulder.predict.0 = boulder.data %>%
   filter(.,
-         toPredict == '0',
-         price < 30000000
+         (toPredict == '0') &
+         (price < price_max_threshold) &
+         (price > price_min_threshold) &
+         (build.house.sf > house_min_sf_threshold) &
+         (build.rooms > room_min_threshold) &
+         (build.baths.adj > bathroom_min_threshold) &
+         (build.bedrooms > bedroom_min_threshold) & 
+         (lot.sqft < lot_max_sqft_threshold) 
          )
-boulder.predict.1 <- boulder.data %>%
+
+boulder.predict.1 = boulder.data %>%
   filter(., toPredict == '1')
 
-boulder.variables
-
-glimpse(boulder.data)
-
 ```
+
 

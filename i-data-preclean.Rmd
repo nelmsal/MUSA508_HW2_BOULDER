@@ -8,50 +8,545 @@ col_crs = st_crs('ESRI:102653')
 
 ```
 
-## 2 Parcel Joins
+# 1 House Sales
+```{r import_sales}
+print(getwd())
+col_crs = st_crs('ESRI:102653')
 
-```{r parcel}
+studentData_path =
+  "./data/studentData.geojson"
+boulder.sales =
+  st_read(studentData_path) %>% 
+  st_set_crs('ESRI:102254') %>% 
+  st_transform(., col_crs) %>%
+  mutate(
+    toPredict = toPredict %>% sapply(., as.character)
+  ) %>%
+  rename(id.musa = MUSA_ID)
 
-# parcel_path =
-#   "data/Boulder_Parcels_20211009.geojson"
-# boulder.parcel = st_read(parcel_path) %>%
-#   rename(ID = OBJECTID, APN=PARCEL_NO) %>%
-#   select(ID,APN) %>%
-#   st_transform(., col_crs) %>% # North Col State Plane Feet
-#   mutate(
-#     geometry = st_make_valid(geometry),
-#     area = st_area(geometry))
-# attributes(boulder.parcel$area) = NULL
-# boulder.parcel = boulder.parcel %>% filter(area>0)
-#
-# address_path =
-#   "data/Boulder_AddressPts_20211009.geojson"
-# boulder.address = st_read(address_path)%>%
-#   st_transform(., col_crs)
-# 
-# acct_path =
-#   "data/Account_Parcels.csv"
-# boulder.parcel.acct = read.csv(acct_path)
-# 
-# build_path =
-#   "data/Buildings.csv"
-# boulder.parcel.build = read.csv(build_path)
-# 
-# land_path =
-#   "data/Land.csv"
-# boulder.parcel.land = read.csv(land_path)
-# 
-# owner_path =
-#   "data/Owner_Address.csv"
-# boulder.parcel.owner = read.csv(owner_path)
-# 
-# permits =
-#   "data/Permits.csv"
-# B.build = read.csv(build_path)
+boulder.sales$lagPrice = 0
+
+boulder.variables = 
+  data.frame(
+    # 0. Housing Sales Price
+    var_name  = c("price"),
+    var_num   = (0),
+    var_type  = ('Dependent')
+    )
+
+add_v = function(vnme, vnum, vtype){
+  if(vnme %in% boulder.variables[['var_name']]){
+    print("didnt add since it is already in")
+    return(boulder.variables)
+    }
+  else{
+    return(rbind(boulder.variables,c(
+    vnme, vnum, vtype
+    )) %>% arrange(var_num))}}
 
 ```
 
-## 3 Parcel Clean
+# 2 Parcel Joins
+## A Main Import
+```{r parcel}
+
+################
+# https://opendata-bouldercounty.hub.arcgis.com/datasets/parcels/explore
+
+parcel_path =
+  "./data/Boulder_Parcels_20211009.geojson"
+boulder.parcel = st_read(parcel_path) %>%
+  st_transform(., col_crs) #%>% # North Col State Plane Feet
+  # mutate(
+  #   geometry = st_make_valid(geometry),
+  #   lot.sqft = st_area(geometry) %>% as.numeric()) %>% 
+  #filter(lot.sqft>0)
+
+"data/Boulder_Sales_Assessor_join.csv"
+```
+
+
+### 1 Join Sales & parcel
+``` {r parcel_fix}
+boulder.p.sales = 
+  st_join(
+    boulder.sales %>% 
+      select(id.musa, address),
+    boulder.parcel[boulder.parcel$id.apn != '157508Q01002',],
+    quiet=TRUE
+  ) %>% 
+  select(id.musa,id.apn,address) %>%
+  mutate_by(
+    group=id.apn,
+    count.apn = n()
+  ) %>%
+  mutate_by(
+    group=id.musa,
+    count.musa = n()
+  ) %>%
+  mutate_by(
+    group=address,
+    count.add = n()
+  ) %>% 
+  st_drop_geometry() %>% 
+  arrange(desc(count.musa), desc(count.add), desc(count.apn))
+
+# count_unique(boulder.p.sales$id.apn)
+# count_unique(boulder.p.sales$id.musa)
+# 
+# boulder.p.sales[
+#   (boulder.p.sales$count.musa>1) | 
+#   (boulder.p.sales$count.apn>1),
+# ] %>% st_drop_geometry()
+
+boulder.p.sales %>% distinct(., id.musa)
+
+```
+## B Site Addresses
+
+``` {r import_siteadds}
+# https://opendata-bouldercounty.hub.arcgis.com/datasets/bouldercounty::address-points/about
+
+# 'Site address points' refer to the location of a site or service delivery address assigned by a local government.
+
+# SITE ADDRESS POINTS (?)
+address_path =
+  "./data/Boulder_AddressPts_20211009.geojson"
+boulder.address = st_read(address_path) %>%
+  st_transform(., col_crs)
+```
+
+## C Accessory Assessor Tables
+
+### 1 Import 
+``` {r import_accessory}
+
+# https://www.bouldercounty.org/property-and-land/assessor/data-download/
+
+# METADATA
+## 'parcel' refers to a unique piece of land
+### "PARCELNO" field is the tax parcel number
+
+## 'property' refers to the land and building
+### individual 'account' for each land & building
+### “strap” field is the tax account number
+#### Real property accounts start with “R”
+#### mobile home accounts start with “M”
+
+## one-to-many relationships between parcels & accounts
+### could be differing owned of land/property
+
+## buildings are structures with an account
+
+
+# Owners & Addresses
+owner_path =
+  "./data/Owner_Address.csv"
+boulder.p.owner.raw = read.csv(owner_path) %>%
+  rename(
+    id.apn  = folio,
+    id.acct = strap
+    )%>%
+  filter(
+    role_cd=='P' &
+    account_type != 'MANUFACTURED HOME' & 
+    account_type != 'MINERALS'
+    ) %>%
+  mutate(
+    address = paste(
+      str_num,
+      str,
+      str_pfx,
+      str_sfx,
+      str_unit,
+      city,
+      "Colorado"
+    )
+  ) %>% 
+  select(-owner_name)
+
+#boulder.p.owner.raw[boulder.p.owner.raw$id.apn == '157508Q01001',]
+boulder.p.owner.raw[boulder.p.owner.raw$id.acct == 'R0614549','address'] = "537 LA FARGE  AVE  LOUISVILLE Colorado"
+
+sales.add.in = boulder.sales[boulder.sales$address %in% boulder.p.owner.raw$address,]$address
+
+boulder.p.owner = 
+  boulder.p.owner.raw[
+    (boulder.p.owner.raw$address %in% sales.add.in),
+    c('id.acct', 'id.apn', 'address', 'bld_num', 'nh', 'account_type')] %>%
+  distinct() %>%
+  mutate_by(
+    group=address,
+    count.add=n()
+  ) %>%
+  mutate_by(
+    group=id.apn,
+    count.apn = n()
+  )
+
+# Account & Parcel Numbers (?)
+acct_path =
+  "./data/Account_Parcels.csv"
+boulder.p.acct = 
+  read.csv(acct_path) %>%
+  rename(
+    id.apn  = Parcelno,
+    id.acct = strap
+    )
+
+
+# Buildings 
+build_path =
+  "./data/Buildings.csv"
+boulder.p.build = read.csv(build_path) %>%
+  rename(id.acct = strap)
+
+boulder.p.build %>%
+  filter(id.acct %in% boulder.sales$id.acct)
+  
+
+# Land
+land_path =
+  "./data/Land.csv"
+boulder.p.land = read.csv(land_path)
+
+## PERMIT RECORDS
+# permits =
+#   "./data/Permits.csv"
+# B.build = read.csv(build_path)
+
+###################
+
+# boulder.p.acct %>% 
+#   filter(id.apn %in% )
+
+```
+
+
+
+### 2 Narrow Down Account Table
+
+``` {r Combine}
+
+own.add.dupe = boulder.p.owner[boulder.p.owner$count.add>1,] %>% unique()
+own.add.dupe = own.add.dupe$address
+
+########
+
+filter.add_in_sales = (boulder.p.owner$address %in% sales.add.in)
+filter.dup_add      = (boulder.p.owner$address %in% own.add.dupe)
+
+boulder.p.owner.good = 
+  boulder.p.owner[filter.add_in_sales&!filter.dup_add,]
+print(nrow(boulder.p.owner.good))
+
+boulder.p.owner.bad = 
+  boulder.p.owner[filter.add_in_sales&filter.dup_add,]
+
+count_unique(boulder.p.owner.bad$address)
+
+subtable_non_res = function(df) df %>% filter(grepl("RESIDENTIAL",account_type))
+
+boulder.p.owner.bad_split = 
+  boulder.p.owner.bad %>% 
+  arrange(address) %>%
+  split(., .[['address']]) %>%
+  lapply(., subtable_non_res) %>%
+  do.call("rbind", .) %>%
+  # find those still having address duplicates
+  mutate_by(group=address, count.add2=n()) %>%
+  arrange(desc(count.add2))
+
+adds.first_correct_add_dup    = boulder.p.owner.bad_split[boulder.p.owner.bad_split$count.add2==1,]$address
+filter.first_correct_add_dup  = (boulder.p.owner$address %in% adds.first_correct_add_dup)
+boulder.p.owner.first_dupe    = boulder.p.owner[filter.first_correct_add_dup,]
+print(length(adds.first_correct_add_dup))
+
+filter_two_column = function(compare_df, focus_df, first_col, second_col){
+    apply(
+      compare_df[,c(first_col,second_col)],
+      1,
+      function(first_row){
+        focus_df[
+          (focus_df[first_col]==first_row[1])&
+          (focus_df[second_col]==first_row[2]),]}
+    ) %>%
+    do.call("rbind", .)}
+
+boulder.p.owner.second_dupe = 
+  filter_two_column(
+    boulder.p.owner.bad_split[boulder.p.owner.bad_split$count.add2>1,],
+    boulder.p.sales,
+    'id.apn','address'
+  ) %>%
+  na.omit() %>%
+  select(id.apn, address) %>%
+  filter_two_column(
+    .,
+    boulder.p.owner,
+    'id.apn','address'
+  )
+print(nrow(boulder.p.owner.second_dupe))
+
+boulder.p.owner.add = 
+  rbind(
+    boulder.p.owner.good,
+    boulder.p.owner.first_dupe,
+    boulder.p.owner.second_dupe
+  ) %>%
+  select(-count.add,-count.apn) %>%
+  mutate_by(
+    group=address,
+    count.add=n()
+  ) %>%
+  mutate_by(
+    group=id.apn,
+    count.apn = n()
+  ) %>% 
+  arrange(desc(count.apn), desc(count.add))
+
+
+boulder.p.owner.good_join = 
+  boulder.p.owner.add[
+    (boulder.p.owner.add$count.add==1) &
+    (boulder.p.owner.add$count.apn==1),]
+
+boulder.p.owner.good_join = 
+  merge(
+    boulder.p.owner.good_join %>%
+      select(id.acct, id.apn, address),
+    boulder.sales %>% 
+      select(address, id.musa),
+    on='address'
+  )
+
+print(nrow(boulder.p.owner.good_join))
+
+boulder.sales.not_in = 
+  boulder.sales %>%
+  filter(!address %in% boulder.p.owner.good_join$address)
+
+boulder.p.sales.remain = 
+  boulder.p.sales %>% 
+    filter(id.apn %in% boulder.p.owner.raw$id.apn) %>%
+    filter(id.musa %in% boulder.sales.not_in$id.musa) %>%
+    mutate_by(
+      group=id.apn,
+      count.apn = n()
+    ) %>%
+    mutate_by(
+      group=id.musa,
+      count.musa = n()
+    ) %>%
+    mutate_by(
+      group=address,
+      count.add = n()
+    ) %>%
+    arrange(desc(count.musa), desc(count.apn), desc(count.add))
+
+boulder.p.build.resi = 
+  boulder.p.build %>% 
+  filter(substr(designCode,1,1)=='0')
+
+boulder.p.sales_fix = 
+  boulder.p.acct %>% 
+  filter(
+    (id.apn %in% boulder.p.sales.remain$id.apn)
+    ) %>%
+  mutate_by(group=id.apn,count.apn=n()) %>%
+  arrange(count.apn)
+
+boulder.p.sales.first_fix =
+  rbind(
+    boulder.p.sales_fix[boulder.p.sales_fix$count.apn==1,],
+    boulder.p.sales_fix[boulder.p.sales_fix$count.apn>1,] %>%
+      filter(
+        (id.acct %in% boulder.p.build.resi$id.acct) &
+        (substr(id.acct,1,1)!='M'))
+    ) %>%
+  merge(
+    .,
+    boulder.p.sales.remain %>%
+      filter(id.apn %in% boulder.p.sales_fix$id.apn) %>% 
+      select(id.musa,id.apn,address),
+    on='id.apn'
+  )
+
+boulder.p.sales.second_fix = 
+  boulder.p.sales %>% 
+  filter(
+    (!id.musa %in% boulder.p.sales.first_fix$id.musa) & 
+    (id.musa %in% boulder.sales.not_in$id.musa)) %>% 
+  merge(., boulder.p.acct, on='id.apn')
+
+length(unique(boulder.sales$id.musa))
+nrow(boulder.p.owner.good_join) + nrow(boulder.p.sales.first_fix) + nrow(boulder.p.sales.second_fix)
+length(unique(c(
+  boulder.p.owner.good_join$id.acct, 
+  boulder.p.sales.first_fix$id.acct,
+  boulder.p.sales.second_fix$id.acct
+  )))
+
+boulder.p.sales.join =
+  rbind(
+    boulder.p.owner.good_join %>% 
+      select(id.musa, address, id.apn, id.acct),
+    boulder.p.sales.first_fix %>% 
+      select(id.musa, address, id.apn, id.acct),
+    boulder.p.sales.second_fix %>% 
+      select(id.musa, address, id.apn, id.acct)
+  )
+
+
+# boulder.p.build.join =
+#   boulder.p.build %>% 
+#   filter(
+#     (id.acct %in% boulder.p.sales.join$id.acct) & 
+#     (bldgClass==1212) &
+#     (designCode,1,1)=='0')) %>%
+#   mutate_by(group=id.acct, count.acct = n()) %>% 
+#   #distinct(id.acct, designCode) %>%
+#   arrange(desc(count.acct))
+# 
+# boulder.p.build.join = 
+#   boulder.p.build.join[ !duplicated(boulder.p.build.join[, c("id.acct")]),]
+
+
+boulder.p.build %>% 
+  filter(id.acct %in% boulder.p.sales.join$id.acct) %>%
+  mutate_by(group=id.acct,count.acct = n()) %>%
+  arrange(count.acct) %>%
+  group_by(count.acct) %>% summarize(count = n())
+
+boulder.p.build %>% filter(boulder.p.build$id.acct %in% boulder.p.sales.join$id.acct) %>%
+  arrange(bldgClass) %>% mutate_by(group=bldgClass,count.class = n()) %>% select(bldgClassDscr,count.class) %>% unique()
+
+resi_codes = 
+  c('SINGLE FAM RES IMPROVEMENTS', 'DUP/TRIPLEX IMPROVEMENTS', 'MULTI-UNITS (4-8) IMPROVEMENTS', 'MULTI-UNITS (9+) IMPROVEMENTS', 'CONDOS-IMPROVEMENTS', 'MANUFACTURED HOUSING IMPROVEMENTS', 'MANUFACTURED HOME PARK IMPROVEMENTS')
+
+#buildcols = colnames(boulder.p.build)
+#buildcols[!buildcols %in% colnames(boulder.sales)]
+
+```
+
+## D Combine
+
+``` {r combine}
+
+
+boulder.p.count_dupes =
+  boulder.parcel %>%
+  select(id.apn) %>% 
+  st_drop_geometry() %>%
+  mutate(
+    in.sales = ifelse(
+      id.apn %in% boulder.p.sales.join$id.apn,
+      1, 0)) %>%
+  group_by(id.apn, in.sales) %>%
+  summarize(
+    count.apn = n()) %>%
+  arrange(desc(in.sales),desc(count.apn))
+
+boulder.p.dupes.sales = 
+  boulder.p.count_dupes %>% 
+  filter((in.sales==1)&(count.apn>1)) %>%
+  pull(id.apn)
+
+boulder.p.dupes.other = 
+  boulder.p.count_dupes %>% 
+  filter((in.sales==0)&(count.apn>1)) %>%
+  pull(id.apn)
+
+boulder.parcel.rejoin =
+  boulder.parcel %>%
+  filter(id.apn %in% c(boulder.p.dupes.sales, boulder.p.dupes.other)) %>%
+  group_by(id.apn) %>%
+  summarize(
+    geometry = st_union(geometry),
+    lot.sqft = st_area(geometry) %>%
+      as.numeric()) %>% 
+  st_as_sf()
+
+parcel_save = 
+  rbind(
+    boulder.parcel.rejoin %>% 
+      select(id.apn,lot.sqft,geometry),
+    boulder.parcel %>% 
+      filter(!id.apn %in% boulder.parcel.rejoin$id.apn) %>%
+      select(id.apn,lot.sqft,geometry)
+  ) %>%
+  st_transform(st_crs('EPSG:4326'))
+
+st_write(parcel_save, "data/Boulder_Parcels_20211009_fix.geojson", delete_dsn = TRUE)
+  
+parcel_test = st_read("data/Boulder_Parcels_20211009_fix.geojson")
+
+boulder.p.sales.join 
+
+write.csv(boulder.p.sales.join, file = "data/Boulder_Sales_Assessor_join.csv")
+
+```
+
+### E sales/parcels land 
+``` {r write}
+boulder.p.land = boulder.p.land %>% rename(id.acct = strap)
+join_id = boulder.p.land[boulder.p.land$lot.sqft>0,] %>% pull(id.acct)
+
+boulder.land.join = 
+  boulder.p.sales %>% 
+      filter(id.acct %in% join_id) %>%
+      select(-lot.sqft) %>%
+  # merge(
+  #   boulder.p.sales %>% 
+  #     filter(id.acct %in% join_id) %>%
+  #     select(-lot.sqft),
+  #   boulder.p.land[
+  #     !duplicated(boulder.p.land$id.acct) & 
+  #     (boulder.p.land$id.acct %in% boulder.p.sales$id.acct), ] %>%
+  #     select(id.acct, lot.sqft),
+  #   on = 'id.acct'
+  # ) %>%
+  rbind(
+    .,
+    boulder.p.sales %>% 
+      filter(!id.acct %in% join_id)
+  ) %>%
+  st_drop_geometry() %>%
+  select(id.musa, address, id.apn, id.acct, lot.sqft)
+
+
+write.csv(boulder.land.join, file = "data/Boulder_Sales_Assessor_join.csv")
+
+
+join.tax = read.csv("data/Boulder_Sales_Assessor_join.csv")
+
+join.tax %>%
+  merge(
+    .,
+    boulder.parcel,
+    on = 'id.apn',
+      
+  )
+
+land.fix = 
+  boulder.p.land %>%
+    mutate(
+      GIS_sqft = ifelse(
+        landUnitType=='SF',
+        GIS_sqft,
+        ifelse(
+          landUnitType=='AC',
+          GIS_sqft * 43560,
+          0
+        )
+      )
+    )
+
+boulder.p.land %>% group_by(landUnitType) %>% summarize(count=n())
+
+```
+
+# 3 Parcel Clean
 
 ```{r parcel_clean}
 
@@ -76,13 +571,18 @@ col_crs = st_crs('ESRI:102653')
 #   boulder.parcel[boulder.parcel$APN %in% dupe_APN,] %>% group_by(APN) %>%
 #   summarize(geometry = st_union(geometry))
 # 
+# boulder.parcel[(boulder.parcel$APN == "157505036006")&
+#         (boulder.parcel$area>0),]
+# 
+# boulder.county = boulder.parcel %>% st_union(.)
+# 
 # ggplot() +
-#   geom_sf(data=boulder.county, lwd=.1, color='lightgrey') 
+#   geom_sf(data=boulder.county, lwd=.1, color='lightgrey')
 # +
 #   geom_sf(data=boulder.parcel, lwd=.1) +
 #   geom_sf(data=B.dupe,
 #           fill='pink', color='red') +
-#   plot_limits(poly.geometry= B.dupe)
+#   plot_limits(data= B.dupe)
 ```
 
 
@@ -178,9 +678,13 @@ boulder.cities[
     st_union(., by_feature=TRUE) %>%
     st_buffer(-1)
 
+bc.buff = boulder.cities %>% st_union() %>% st_buffer(mile * 2)
+boulder.cities.nearby = st_intersection(state.cities, bc.buff) %>% filter(incorporated != 'County')
 
-st_write(boulder.cities, "data/boulder_cities.geojson")
-st_write(boulder.county, "data/boulder_county.geojson")
+col.cities.list = state.cities %>% st_drop_geometry() %>% filter(incorporated != 'County')
+col.cities.list = col.cities.list$name %>% unique() %>% toupper()
+boulder.cities.list = boulder.cities.nearby$name %>% unique() %>% toupper()
+
 
 ###################
 
@@ -303,8 +807,6 @@ get_majority_intersect =
     
     sf.focus[[compare_id_field]][is.na(sf.focus[[compare_id_field]])] = 'NULL'
     
-    
-    
     return(sf.focus)
   }
 
@@ -379,7 +881,11 @@ boulder.nhoods.cz =
       st_drop_geometry(.),
     on=zhood_id,
     all.x = TRUE) %>%
-  mutate_by(., group=zhood_id, zhood_count = n())
+  mutate_by(
+    ., 
+    group=zhood_id, 
+    zhood_count = n()
+    )
 
 boulder.nhoods.cz[boulder.nhoods.cz$zhood_id=='NULL', 'zhood_count']=0
 
@@ -645,10 +1151,10 @@ ggplot() +
     color='grey50') + 
   geom_sf(
     data = 
-      boulder.nhoods.focus.fish_all%>%
+      boulder.nhoods.focus.fish_all %>%
         mutate(orient.pct = orient.area/nhood.area) %>%
         group_by(nhood_id) %>%
-        slice(which.max(orient.pct)),
+        slice(),
     aes(fill=nhood_id), alpha=.5,
     color='black', linetype = "dashed") +
   geom_sf(
@@ -668,11 +1174,18 @@ ggplot() +
     color='grey50', 
     size=1) +
   geom_text_sf(sf_to_labels(
-    boulder.nhoods.focus.fish, 
+    boulder.nhoods.focus.fish %>%
+      mutate(
+        orient.name = 
+          ifelse(neighborhood == 'University Hill 3',
+                 'W University Hill',
+                 orient.name)
+      ), 
     'orient.name'), color='black') +
-  theme(legend.position = "none") + 
+  theme(legend.position = "none") +  
+  labs(title = "University Hill Voting Precincts") + 
   mapTheme() +
-  plot_limits(poly.geometry = boulder.nhoods.focus.fish$geometry)
+  plot_limits(data = boulder.nhoods.focus.fish$geometry)
 
 
 
@@ -992,7 +1505,7 @@ col.districts.table =
       glue('https://s3.amazonaws.com/gm-zdm/gj/sch/{map_id}.geojson'))
 ```
 
-### D get geometries
+### D Districts
 
 ``` {r geom}
 
@@ -1004,8 +1517,6 @@ school.dist.scores =
         paste('08', gsub("\"", "", id), sep='')}), 
     district_id = district_id %>% 
       sapply(., FUN = function(id){gsub("\"", "", id)})) 
-
-school.dist.scores
 
 
 boulder.dist.ele = 
@@ -1079,38 +1590,535 @@ boulder.ele.cach =
   filter(.[['school_level']]=='Elementary') %>%
   select(map_id, dist_id, school_name, school_students)
 
-boulder.ele.pts = 
+```
+
+
+### E School Location Points
+
+``` {r Points}
+
+col.school.pts = 
   st_read('data/col_elementary_points.geojson') %>%
   st_transform(col_crs) %>%
   #st_filter(., boulder.county %>% st_union()) %>%
   drop_na(.) %>%
   filter(
     #!(Highest_Grade %in% c("10th grade","10th Grade","11th grade","11th Grade","12th grade","12th Grade", "9th grade", "9th Grade" )) &
-      Type_ != "Public School District Office Physical Address"
-    )
-
-unique(boulder.ele.pts$Type_) %>% sort()
-
-library(stringdist)
-
-
-
-dist_rank = 
-  stringdistmatrix(
-    school.elementary.rank$school,
-    boulder.ele.pts$School_Name
+    Type_ != "Public School District Office Physical Address"
   )
-boulder.sales %>% 
-  merge(
+
+unique(col.school.pts$Type_) %>% sort()
+
+# library(stringdist)
+# 
+# dist_rank = 
+#   stringdistmatrix(
+#     col.school.rank$school,
+#     col.school.pts$School_Name
+#   )
+# boulder.sales %>% 
+#   merge(
+#     ., 
+#   )
+  
+#lapply(col.school.rank$school, function(rank_str) amatch(rank_str, col.school.pts$School_Name))
+
+col.school.pts$School_Coded = paste("x", col.school.pts$School_Code %>% str_pad(., 4, pad = "0"), sep='')
+
+```
+### F School Rankings
+
+``` {r ranks}
+#########################################
+library(hereR)
+
+col.school.rank =
+  read_csv('data/colorado_elementary_rankings_2020.csv') %>%
+  rename(full_school_id = school_id) %>%
+  mutate(
+    full_school_id = full_school_id %>% 
+      sapply(., FUN = function(id){gsub("\"", "", id)}),
+    district_id = full_school_id %>% 
+      sapply(., FUN = function(id){substr(id, 1, 4)}),
+    school_id = full_school_id %>% 
+      sapply(., FUN = function(id){substr(id, 7, 10)}),
+    address_full =
+      glue("{address}, {city}, Colorado, United States")
+    ) %>% as.data.frame(.) %>% 
+  rename(Address = address)
+
+set_key("fujtkDNNxADOCxksuaWRUrRG6B5zGRZWRDT_2BZ2vek")
+ele_rank_geom = geocode(col.school.rank$address_full)
+glimpse(ele_rank_geom)
+
+col.school.rank$geometry = ele_rank_geom$geometry
+col.school.rank = col.school.rank %>% st_sf(.) %>% st_set_crs(col_crs)
+col.school.rank$geocode.add = ele_rank_geom$address
+
+col.school.rank %>% 
+  mutate_by(
     ., 
+    group=school,
+    add_count = n()
+    ) %>% 
+  filter(add_count>1) %>%
+  arrange(desc(add_count))
+
+```
+### G Add - Ranks to Locations
+
+#### 1 sub sort by sep function
+``` {r sorter}
+
+get_sep_df = function(
+  sep_vector_raw,
+  sep = '.',
+  sep_length = 2
+){
+  # Set Up Name DF
+  sep_find = glue('\\{sep}')
+  
+  sep_vector_fix = sep_vector_raw
+  sep_vector_fix[(sep %in% sep_vector_fix)]
+  sep_in_str = sapply(sep_vector_fix, function(col) grepl(sep, col, fixed = TRUE))
+  sep_vector_fix[!sep_in_str] = sep_vector_fix[!sep_in_str] %>% paste(., sep, ' ', sep='')
+  
+  cols_split_df = 
+    str_split(sep_vector_fix, 
+              sep_find, 
+              # this stops the separating at the number of order
+              # even if there is more periods
+              n=sep_length) %>% 
+      unlist(.) %>% 
+      matrix(., ncol=sep_length, byrow=TRUE) %>%
+    cbind(
+      sep_vector_fix, 
+      .) %>% 
+      as_tibble(.)
+  
+  order_str = 
+    paste(
+      's',
+      seq(from=1, to=sep_length, by=1),
+      sep='')
+  
+  colnames(cols_split_df) = c('col', order_str)
+  
+  cols_split_df$col = sep_vector_raw
+  
+  return(
+    cols_split_df
   )
+}
   
+sort_by_sep = function(
+  sep_vector_raw,
+  sep   = '.',
+  order = c(1,2),
+  rev   = c('',''),
+  length = 0
+){
+
+  order_length = length(order)
+  if (length>0){
+    order_length = length
+  }
   
+  sep_df = get_sep_df(sep_vector_raw, sep=sep, sep_length = order_length)
   
-lapply(school.elementary.rank$school, function(rank_str) amatch(rank_str, boulder.ele.pts$School_Name))
+  order_str = 
+    paste(
+      's',
+      seq(from=1, to=order_length, by=1),
+      sep='')
+  
+  sort_cols = sapply(order, function(i) order_str[i])
+  
+  for (i in seq_along(rev)){
+    rev_item   = rev[i]
+    sort_item  = sort_cols[1]
+    if (rev_item!=''){
+      sort_cols[i] = paste0("desc(", sort_item, ")")
+    }}
+  
+  sep_df =
+    sep_df %>%
+    arrange_(
+      .dots  = sort_cols
+      )
+
+  return(sep_df$col)
+}
 
 ```
 
+#### 2 compare strings
+``` {r add_ranks}
+
+library(stringdist)
+
+function()
+
+str_match_vec = function(add_str, comp_adds = col.school.pts$Address){
+      focus_str_comps = stringdist(
+        add_str %>% toupper(),
+        comp_adds %>% toupper()
+        )
+      n_char_add = nchar(add_str)
+      focus_str_comps = sapply(
+        focus_str_comps, 
+        function(str) 100-(str/n_char_add*100))
+      max_num = max(focus_str_comps)
+      max_idx = c(which(focus_str_comps == max_num))[1]
+      max_add = comp_adds[max_idx]
+      #return(max_idx)
+      return(c(add_str, max_add, max_num))
+    }
+
+str_match_vec("8970 York Street")
+str_match_vec(col.school.rank$Address[1])
+
+ranks_to_add_comp = 
+  lapply(
+    col.school.rank$Address,
+    str_match_vec
+    ) %>% 
+  unname() %>% unlist() %>% 
+  matrix(., ncol = 3, byrow=T) %>% 
+  data.frame()
+colnames(ranks_to_add_comp) = c("Rank.Add", "Pts.Add", "Pct.Add")
+
+ranks_to_add_comp = 
+  ranks_to_add_comp %>%
+  mutate(
+    Pct.Add = Pct.Add %>% 
+      as.numeric() %>% 
+      round(2)
+  ) %>%
+  arrange(Pct.Add)
+
+ranks_to_add_comp = 
+  ranks_to_add_comp %>%
+  merge(
+    .,
+    col.school.pts %>%
+      rename(
+        Pts.Add   = Address,
+        #Pts.City   = City, 
+        Pts.Name  = School_Name
+      ) %>%
+      select(
+        Pts.Add, 
+        #Pts.City, 
+        Pts.Name) %>%
+      st_drop_geometry(),
+    on = 'Pts.Add',
+    all.x = TRUE
+  ) %>%
+  merge(
+    .,
+    col.school.rank %>%
+      rename(
+        Rank.Add    = Address,
+        Rank.City   = city, 
+        Rank.Name   = school
+      ) %>%
+      select(
+        Rank.Add, 
+        Rank.City, 
+        Rank.Name) %>%
+      st_drop_geometry(),
+    on = 'Rank.Add',
+    all.x = TRUE
+  ) %>% 
+  unique()
+
+comp_sorted = sort_by_sep(colnames(ranks_to_add_comp), sep='.', order=c(1,2), rev=c('',''))
+ranks_to_add_comp = ranks_to_add_comp[, comp_sorted] %>% arrange(Pct.Add)
+
+ranks_to_add_comp = 
+  ranks_to_add_comp %>% 
+  mutate_by(
+    ., 
+    group=Rank.Add,
+    add_count = n()
+    ) %>% 
+  #filter(add_count>1) %>%
+  arrange(desc(add_count))
+
+ranks_to_add_comp_dupe =
+  ranks_to_add_comp %>%
+  filter(.data[['add_count']] > 1) %>%
+  split(., .[['Rank.Name']])
+
+# #?dplyr_data_masking
+
+subtable_samefield = function(
+  subtable, primary_field = 'Rank.Name', second_field = 'Pts.Name'
+  ){
+  primary_name = unique(subtable[[primary_field]])
+  if (length(primary_name)>1){print(primary_name)}
+  primary_name = primary_name[1] %>% 
+    gsub(' Elementary School','', .) %>% 
+    gsub(' High School','', .)
+  comp_adds = subtable[[second_field]] %>% 
+    gsub(' Elementary School','', .) %>% 
+    gsub(' High School','', .)
+   
+  comp_row = str_match_vec(primary_name, comp_adds = comp_adds)
+  
+  comp_pct = comp_row[3] %>% as.numeric()
+  if(comp_pct<75){print(c(unique(subtable[[second_field]]), comp_row))}
+  
+  dupe_correct = comp_row[2]
+  dupe_index = match(dupe_correct,comp_adds)[1]
+  dupe_correct = subtable[[second_field]][dupe_index]
+  
+  #subtable$dupe.correct = comp_pct
+  
+  return(subtable[subtable[[second_field]]==dupe_correct,])
+}
+
+#subtable_samefield(ranks_to_add_comp_dupe[16][[1]])
+
+ranks_to_add_comp_dupe = 
+  ranks_to_add_comp_dupe %>%
+  lapply(., subtable_samefield) %>%
+  do.call("rbind", .)
+
+
+ranks_to_add_comp =
+  rbind(
+    ranks_to_add_comp %>%
+      filter(.data[['add_count']] == 1),
+    ranks_to_add_comp_dupe
+  )
+
+
+str_pct_comp = function(
+  primary_str,
+  second_str,
+  replace = c('')
+){
+  comp_str = 
+    stringdist(
+      primary_str %>% 
+        toupper() %>%
+        str_replace_vector(., replace),
+      second_str %>% 
+        toupper() %>%
+        str_replace_vector(., replace)
+      )
+  n_char_add  = nchar(primary_str)
+  comp_pct    = 100-(comp_str/n_char_add*100)
+  return(comp_pct)
+}
+  
+ranks_to_add_comp =
+  ranks_to_add_comp %>%
+  mutate(
+    Pct.Name = 
+      str_pct_comp(Rank.Name,Pts.Name, 
+                   replace=c(' Elementary School', ' High School')
+                   )) %>%
+  select(-add_count)
+
+unsort_cols = c("Pct.Add","Pct.Name")
+comp_cols = colnames(ranks_to_add_comp)
+comp_sorted = sort_by_sep(comp_cols[!(comp_cols %in% unsort_cols)], sep='.', order=c(2,1), rev=c('',''))
+ranks_to_add_comp = ranks_to_add_comp[, c(unsort_cols, comp_sorted)] %>% 
+  arrange(Pct.Add, Pct.Name)
+
+
+rank.cities.list = ranks_to_add_comp$Rank.City %>% unique() %>% toupper()
+
+rank.cities.list[!(rank.cities.list %in% col.cities.list)]
+
+comp_filter = (ranks_to_add_comp$Pct.Add!=100)&(ranks_to_add_comp$Pct.Name>=50)
+ranks_to_add_comp = ranks_to_add_comp[ranks_to_add_comp$Rank.City %>% toupper() %in% boulder.cities.list, ] %>% arrange(Pct.Add)
+
+ranks_to_add_comp = 
+  ranks_to_add_comp %>% 
+  merge(
+    .,
+    col.school.pts %>% 
+      rename(Pts.Add = Address) %>%
+      select(Pts.Add, geometry),
+    on = 'Pts.Add'
+  ) %>% 
+  st_sf()
+```
+
+#### 3 fix bad pct.add
+``` {r test}
+
+col.school.join = 
+  merge(
+    ranks_to_add_comp %>% 
+      select(Pts.Add) %>% 
+      rename(Address = Pts.Add),
+    col.school.rank %>% 
+      st_drop_geometry() %>%
+      mutate(Address = Address %>% toupper()),
+    on='Address',
+    all.x = T
+  ) %>% 
+  arrange(rank) %>% 
+  distinct(., Address, .keep_all= TRUE)
+
+col.school.join = 
+  col.school.join %>%
+  rename(
+    ele.score.2020 = `average_standard_score_(2020-21)`,
+    ele.score.2018 = `average_standard_score_(2018-19)`,
+    ele.rank.2018 = `rank_(2018-19)`,
+    ele.rank.2020 = rank,
+    ele.name = school,
+    ele.add = Address,
+    ele.id = full_school_id
+  ) %>%
+  select(
+    ele.name,
+    ele.id,
+    ele.add,
+    ele.score.2020,
+    ele.score.2018,
+    ele.rank.2018,
+    ele.rank.2020
+    )
+
+col.school.join
+
+st_write(col.school.join %>% st_transform('EPSG:4326'), "data/boulder_county_elementary.geojson", delete_dsn = TRUE)
+
+```
+
+### H Ranks to Locations
+
+``` {r locations_rank}
+col.school.rank$ele.nn.id =
+  st_nn_id_column(
+    col.school.rank, # 11,364 rows
+    col.school.pts, # 172 cols
+    focus_id = '',
+    compare_id = 'School_Coded'
+  )
+
+col.school.rank$ele.nn.dist =
+  nndist(
+    col.school.rank$geometry %>% as.ppp(.), # 11,364 rows
+    col.school.pts$geometry %>% as.ppp(.) # 172 cols
+  )
+ele_rank_geom$ele.nn.dist_m = ele_rank_geom$ele.nn.dist/5280
+
+string_dist_pct = function(first_col, second_col, upper=TRUE){
+  if (upper==TRUE){
+    first_col = toupper(first_col)
+    second_col = toupper(second_col)
+  }
+  str_comp = 
+    1 - (stringdist(
+      first_col, 
+      second_col, 
+      method = "lv") / nchar(as.character(first_col)))
+  return(str_comp)}
+
+col.school.rank$district = 
+          strsplit(col.school.rank$district, "District") %>% 
+            as.data.frame() %>% 
+            t %>% 
+            data.frame(stringsAsFactors = F) %>% 
+            pull(2) %>% gsub('No.', '', .) %>% str_trim(.)
+
+school.fix = 
+  dplyr::inner_join(
+    col.school.rank %>% 
+      select(
+        ele.nn.id,
+        school,
+        address,
+        district_id,
+        district
+        ) %>%
+      rename(
+        nn.id = ele.nn.id,
+        rank.nme = school,
+        rank.add = address,
+        rank.dist.code = district_id,
+        rank.dist.nme = district
+        ) %>% 
+      st_drop_geometry(.),
+    col.school.pts %>% 
+      select(
+        School_Coded,
+        School_Name,
+        Address,
+        District_Code,
+        District_Name
+      ) %>% 
+      rename(
+        nn.id = School_Coded,
+        nn.nme = School_Name,
+        nn.add = Address,
+        nn.dist.code = District_Code,
+        nn.dist.nme = District_Name
+        ) %>%
+      st_drop_geometry(.),
+    by = 'nn.id'
+  ) %>%
+  mutate(
+    pct.add = string_dist_pct(nn.add, rank.add),
+    pct.nme = string_dist_pct(nn.nme, rank.nme),
+    pct.dist.nme = string_dist_pct(nn.dist.nme, rank.dist.nme)
+  )
+
+colnames(col.school.rank)
+glimpse(col.school.rank %>% arrange(district_id))
+glimpse(col.school.pts %>% arrange(District_Code))
+
+
+col_fix = colnames(fix)
+col_splits = str_split(col_fix, '\\.', n=2) %>% 
+  unlist(.) %>% matrix(., ncol=2, byrow=TRUE) %>%
+  cbind(col_fix,.) %>% as_tibble(.)
+colnames(col_splits) = c('col','s1','s2')
+col_splits$s1 = gsub('pct','_pct', col_splits$s1)
+col_order = col_splits[order(col_splits$s2, -rank(col_splits$s1)),]$col
+
+view(fix[, col_order] %>% arrange(pct.nme))
+
+
+view(fix[,c("address_full","geocode.add","geocode.pct")] %>% arrange(geocode.pct))
+col.school.rank$geocode.add
+
+
+#col.school.rank$geocode.pct = 
+  
+
+
+
+
+
+col.school.rank
+
+
+
+hist(ele_rank_geom$ele.nn.dist_m, breaks='FD')
+
+ele_rank_geom[ele_rank_geom$ele.nn.dist_m>20,]
+
+setdiff(
+  col.school.rank$school_id,
+  boulder.sales$ele.nn.id
+  
+)
+
+unique(boulder.sales$ele.nn.id) %>% sort(.)
+unique(col.school.pts$School_Code) %>% sort(.)
+unique(col.school.rank$school_id) %>% sort(.)
+
+
+```
 
 
 ### E Pts to Sales
@@ -1159,7 +2167,7 @@ st_nn_id_column = function(
 boulder.sales$ele.nn.id =
   st_nn_id_column(
     boulder.sales, # 11,364 rows
-    boulder.ele.pts, # 172 cols
+    col.school.pts, # 172 cols
     #focus_id = 'MUSA_ID',
     compare_id = 'School_Code'
   ) %>%
@@ -1168,155 +2176,9 @@ boulder.sales$ele.nn.id =
 boulder.sales$ele.nn.dist =
   nndist(
     boulder.sales$geometry %>% as.ppp(.), # 11,364 rows
-    boulder.ele.pts$geometry %>% as.ppp(.) # 172 cols
+    col.school.pts$geometry %>% as.ppp(.) # 172 cols
   )
 
-#########################################
-
-school.elementary.rank =
-  read_csv('data/colorado_elementary_rankings_2020.csv') %>%
-  rename(full_school_id = school_id) %>%
-  mutate(
-    full_school_id = full_school_id %>% 
-      sapply(., FUN = function(id){gsub("\"", "", id)}),
-    district_id = full_school_id %>% 
-      sapply(., FUN = function(id){substr(id, 1, 4)}),
-    school_id = full_school_id %>% 
-      sapply(., FUN = function(id){substr(id, 7, 10)}),
-    address_full =
-      glue("{address}, {city}, Colorado, United States")
-    ) %>% as.data.frame(.)
-
-# set_key("gyZXx_gohS8TYDgERoDYTgXlrpOhBek_S1UbuWlYp_8")
-# ele_rank_geom = geocode(school.elementary.rank$address_full)
-# ele_rank_geom
-
-boulder.ele.pts$School_Coded = paste("x", boulder.ele.pts$School_Code %>% str_pad(., 4, pad = "0"), sep='')
-
-school.elementary.rank$geometry = ele_rank_geom$geometry
-school.elementary.rank = school.elementary.rank %>% st_sf(.) %>% st_set_crs(col_crs)
-school.elementary.rank$geocode.add = ele_rank_geom$address
-
-school.elementary.rank$ele.nn.id =
-  st_nn_id_column(
-    school.elementary.rank, # 11,364 rows
-    boulder.ele.pts, # 172 cols
-    focus_id = '',
-    compare_id = 'School_Coded'
-  )
-
-school.elementary.rank$ele.nn.dist =
-  nndist(
-    school.elementary.rank$geometry %>% as.ppp(.), # 11,364 rows
-    boulder.ele.pts$geometry %>% as.ppp(.) # 172 cols
-  )
-ele_rank_geom$ele.nn.dist_m = ele_rank_geom$ele.nn.dist/5280
-
-string_dist_pct = function(first_col, second_col, upper=TRUE){
-  if (upper==TRUE){
-    first_col = toupper(first_col)
-    second_col = toupper(second_col)
-  }
-  str_comp = 
-    1 - (stringdist(
-      first_col, 
-      second_col, 
-      method = "lv") / nchar(as.character(first_col)))
-  return(str_comp)}
-
-school.elementary.rank$district = 
-          strsplit(school.elementary.rank$district, "District") %>% 
-            as.data.frame() %>% 
-            t %>% 
-            data.frame(stringsAsFactors = F) %>% 
-            pull(2) %>% gsub('No.', '', .) %>% str_trim(.)
-
-fix = 
-  dplyr::inner_join(
-    school.elementary.rank %>% 
-      select(
-        ele.nn.id,
-        school,
-        address,
-        district_id,
-        district
-        ) %>%
-      rename(
-        nn.id = ele.nn.id,
-        rank.nme = school,
-        rank.add = address,
-        rank.dist.code = district_id,
-        rank.dist.nme = district
-        ) %>% 
-      st_drop_geometry(.),
-    boulder.ele.pts %>% 
-      select(
-        School_Coded,
-        School_Name,
-        Address,
-        District_Code,
-        District_Name
-      ) %>% 
-      rename(
-        nn.id = School_Coded,
-        nn.nme = School_Name,
-        nn.add = Address,
-        nn.dist.code = District_Code,
-        nn.dist.nme = District_Name
-        ) %>%
-      st_drop_geometry(.),
-    by = 'nn.id'
-  ) %>%
-  mutate(
-    pct.add = string_dist_pct(nn.add, rank.add),
-    pct.nme = string_dist_pct(nn.nme, rank.nme),
-    pct.dist.nme = string_dist_pct(nn.dist.nme, rank.dist.nme)
-  )
-
-colnames(school.elementary.rank)
-glimpse(school.elementary.rank %>% arrange(district_id))
-glimpse(boulder.ele.pts %>% arrange(District_Code))
-
-
-col_fix = colnames(fix)
-col_splits = str_split(col_fix, '\\.', n=2) %>% 
-  unlist(.) %>% matrix(., ncol=2, byrow=TRUE) %>%
-  cbind(col_fix,.) %>% as_tibble(.)
-colnames(col_splits) = c('col','s1','s2')
-col_splits$s1 = gsub('pct','_pct', col_splits$s1)
-col_order = col_splits[order(col_splits$s2, -rank(col_splits$s1)),]$col
-
-view(fix[, col_order] %>% arrange(pct.nme))
-
-
-view(fix[,c("address_full","geocode.add","geocode.pct")] %>% arrange(geocode.pct))
-school.elementary.rank$geocode.add
-
-
-school.elementary.rank$geocode.pct = 
-  
-
-
-
-
-
-school.elementary.rank
-
-
-
-hist(ele_rank_geom$ele.nn.dist_m, breaks='FD')
-
-ele_rank_geom[ele_rank_geom$ele.nn.dist_m>20,]
-
-setdiff(
-  school.elementary.rank$school_id,
-  boulder.sales$ele.nn.id
-  
-)
-
-unique(boulder.sales$ele.nn.id) %>% sort(.)
-unique(boulder.ele.pts$School_Code) %>% sort(.)
-unique(school.elementary.rank$school_id) %>% sort(.)
 
 ggplot() + 
   # geom_sf(
@@ -1324,13 +2186,13 @@ ggplot() +
   #   aes(fill=incorporated), 
   #   color='transparent') + 
   # geom_sf(
-  #   data = boulder.ele.pts, 
+  #   data = col.school.pts, 
   #   aes(fill=school_name), 
   #   color='transparent') + 
   geom_cities() +
   geom_county() +
   geom_sf(
-    data = boulder.ele.pts
+    data = col.school.pts
   ) + 
   # geom_text(
   #   data=boulder.cities.labels, check_overlap=TRUE,
@@ -1341,7 +2203,7 @@ ggplot() +
   plot_limits(boulder.county %>% st_buffer(100000)) +
   mapTheme()
 
-'0436' %in% boulder.ele.pts$School_Code
+'0436' %in% col.school.pts$School_Code
 fix
 ```
 

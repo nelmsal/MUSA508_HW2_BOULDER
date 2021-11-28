@@ -37,3 +37,10 @@ rsconnect/
 data/Boulder_AddressPts_20211009.geojson
 data/Boulder_Parcels_20211009.geojson
 data/Zillow_Neighborhoods/*
+data/Boulder_Parcels_20211009_original.geojson
+data/Boulder_Parcels_20211009_fix.geojson
+data/Buildings_2.csv
+results/Training_LM.txt
+results/Boulder_Data.txt
+results/Boulder_Data.txt
+*.txt
