@@ -21,21 +21,87 @@ In this section, the study will examine if the housing price predictions are spa
 
 ```{r map_all_predict, message=FALSE, warning=FALSE}
 
-ggplot() +
-### base
-  geom_sf(data = XXXX, fill = "gray90", colour = "white") +
-  geom_sf(data = XXXX, fill = "XXXX", colour = "XXXXX") +
-  
-  
-  geom_sf(data = boulder.predict, aes(colour = q5(price.predict))) +
- 
-### get palette5???
-  scale_colour_manual(values = palette5) +
 
- labs(title = "Figure XXX: predicted House Price Values", subtitle = "Boulder County, CO") +
- # facet_wrap(~toPredict) +
-  mapTheme()
+boulder.test = 
+  boulder.test %>%
+  st_join(
+    .,
+    boulder.fishnet,
+    suffix = c("", ".dupe_join")
+  ) %>%
+  select(-ends_with(".dupe_join"))
 
+boulder.test.fishnet = 
+  merge(
+    boulder.fishnet,
+    boulder.test %>%
+      mutate(count.homes = 1) %>%
+      st_drop_geometry() %>%
+      group_by(id.fishnet) %>%
+      summarize(
+        count.homes   = sum(count.homes),
+        MAE     = mean(price.abserror),
+        ME  = mean(price.error),
+        avg.price.predict = mean(price.predict),
+        avg.price  = mean(price)
+      ),
+    on='id.fishnet'
+  )%>%
+  mutate(count.homes = replace_na(count.homes, 0))
+
+
+Var1_map = var_cut_map(
+  var_field = "avg.price",
+  focus_pal = "Emrld",
+  pal_rev = TRUE,
+  var_breaks_nomax = c(50000,250000,500000,1000000, 1500000),
+  var_title = 'Average Sales Price',
+  var_legend = 'Mean Home Sales\nPrice (USD)',
+  var_num = 'A'
+)
+
+Var2_map = var_cut_map(
+  var_field = 'avg.bedrooms',
+  focus_pal = "Red-Purple",
+  pal_rev = TRUE,
+  var_breaks_nomax = c(0,1,2,3, 5),
+  var_title = 'Average Bedrooms',
+  var_legend = 'Mean Amount of Bedrooms',
+  var_num = 'B'
+)
+
+acre = 43560
+boulder.predict.fishnet$avg.lot.acre = 
+  boulder.predict.fishnet$avg.lot.sqft/acre
+boulder.predict.fishnet$avg.lot.acre %>% summary() #hist(breaks='fd')
+
+Var3_map = var_cut_map(
+  var_field = 'avg.lot.acre',
+  focus_pal = "Heat",
+  pal_rev = TRUE,
+  var_breaks_nomax = c(0,.2,.5, 1, 2, 5),
+  var_title = "Average Lot Size",
+  var_legend = 'Mean Lot Size\nin Acres',
+  var_num = 'C'
+)
+
+Var4_map = var_cut_map(
+  var_field = 'avg.build.year.adj',
+  focus_pal = "Zissou 1",
+  pal_rev = FALSE,
+  var_breaks_nomax = c(1900,1940,1980, 2000),
+  var_title = "Average Build Year (Adjusted)",
+  var_legend = 'Mean Build Year\nAdjusted by Assessor\nafter Major Remodeling',
+  var_num = 'D'
+)
+
+grid.arrange(
+  Var1_map,
+  Var2_map,
+  Var3_map,
+  Var4_map,
+  ncol=2
+)
 ```
 
 

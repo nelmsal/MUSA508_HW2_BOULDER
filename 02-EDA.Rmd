@@ -790,19 +790,19 @@ var_cut_map = function(
   ){
   new_var_field = var_field %>% 
     gsub('count','cut', .) %>% gsub('avg','cut', .)
-  mx = max(boulder.predict.fishnet[[var_field]]) %>% ceiling()
-  focus_length = length(unique(boulder.predict.fishnet[[var_field]]))
+  mx = max(focus_sf[[var_field]]) %>% ceiling()
+  focus_length = length(unique(focus_sf[[var_field]]))
   #var_breaks = seq(0, ceiling_10(mx))
   var_breaks = c(var_breaks_nomax, mx)
-  boulder.predict.fishnet[[new_var_field]] = 
-    cutting_field(boulder.predict.fishnet[[var_field]], var_breaks)
-  breaks_length = length(unique(boulder.predict.fishnet[[new_var_field]]))
+  focus_sf[[new_var_field]] = 
+    cutting_field(focus_sf[[var_field]], var_breaks)
+  breaks_length = length(unique(focus_sf[[new_var_field]]))
   var_pal = hcl.colors(breaks_length, #-1, 
                        alpha=.95, palette = focus_pal,
                        rev = pal_rev)
   #var_pal = c('grey90',var_pal)
   
-  fish_vars_map = function(focus_sf = boulder.predict.fishnet, cut_field = new_var_field,
+  fish_vars_map = function(focus_sf = focus_sf, cut_field = new_var_field,
                            cut_pal=var_pal, cut_breaks = var_breaks,
                            sub_num='A', map_title = ' ', legend_title=NULL
                            ){
