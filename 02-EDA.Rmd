@@ -547,14 +547,18 @@ st_fishnet = function(focus_sf, cell_size=500){
     st_sf() %>%
     mutate(id.fishnet = rownames(.))}
 
+abs_n = function(str_num) abs(as.numeric(str_num))
+
 format_thousand_million = function(lab) 
-  ifelse(as.numeric(lab)>20000, 
-    ifelse(as.numeric(lab)>=500000,
-      paste(round(as.numeric(lab)/1000000,1),'m',sep=''),
-      paste(floor(as.numeric(lab)/1000),'k',sep='')),
-    lab) %>% 
-  str_remove(., "^0+") %>%
-  sub("0+$", "", .)
+  ifelse(abs_n(lab)>1,
+    ifelse(abs_n(lab)>20000, 
+      ifelse(abs_n(lab)>=500000,
+        paste(round(as.numeric(lab)/1000000,1),'m',sep=''),
+        paste(floor(as.numeric(lab)/1000),'k',sep='')),
+      lab) %>% 
+    str_remove(., "^0+") %>%
+    sub("0+$", "", .),
+  lab)
 
 label_breaks = function(
   breaks, combiner = 'to', high_reduce=.1, 
@@ -810,8 +814,8 @@ var_cut_map = function(
       geom_sf(data = focus_sf, aes_string(fill = new_var_field), color = NA) +
       scale_fill_manual(
         values = cut_pal, 
-        labels = label_breaks(cut_breaks, high_reduce=ifelse(cut_breaks[1]>0,1,.1), 
-                              above1k = ifelse(cut_breaks[1]>10000,TRUE,FALSE)),
+        labels = label_breaks(cut_breaks, high_reduce=ifelse(abs(cut_breaks[1])>0,1,.1), 
+                              above1k = ifelse(abs(cut_breaks[3])>10000,TRUE,FALSE)),
         name=legend_title) + 
       #geom_cities(data=boulder.cities %>% filter(incorporated=='city'), color='grey10') +
       geom_county() + 
@@ -828,8 +832,6 @@ var_cut_map = function(
                 cut_pal=var_pal, cut_breaks = var_breaks,
                 sub_num=var_num, map_title = var_title, legend_title=var_legend))}
 
-boulder.predict.fishnet$avg.price %>% hist(breaks='fd')
-boulder.data$price %>% summary()
 
 Var1_map = var_cut_map(
   var_field = "avg.price",

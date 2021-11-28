@@ -163,7 +163,7 @@ boulder.test =
     price.predict   = predict(lm.train, .), 
     
     # residuals
-    price.error     = price.predict - price,
+    price.error     = price - price.predict,
     price.rmse      = sqrt(mean((price.error)^2)),
     price.abserror  = abs(price.predict - price), 
     price.ape       = price.abserror / price
@@ -293,7 +293,7 @@ boulder.predict.0.cv =
     price.predict  = predict(train.cv, .), 
     
     # Residual
-    price.error    = price.predict - price, 
+    price.error     = price - price.predict, 
     price.abserror = abs(price.predict - price), 
     price.ape      = (price.abserror / price),
     

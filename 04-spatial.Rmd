@@ -21,6 +21,7 @@ In this section, the study will examine if the housing price predictions are spa
 
 ```{r map_all_predict, message=FALSE, warning=FALSE}
 
+map_num = 4
 
 boulder.test = 
   boulder.test %>%
@@ -50,48 +51,53 @@ boulder.test.fishnet =
   mutate(count.homes = replace_na(count.homes, 0))
 
 
+
 Var1_map = var_cut_map(
-  var_field = "avg.price",
-  focus_pal = "Emrld",
+  focus_sf = boulder.test.fishnet,
+  var_field = "count.homes",
+  focus_pal = "PuBu",
   pal_rev = TRUE,
-  var_breaks_nomax = c(50000,250000,500000,1000000, 1500000),
-  var_title = 'Average Sales Price',
-  var_legend = 'Mean Home Sales\nPrice (USD)',
+  var_breaks_nomax = c(0,1,5,15,50),
+  var_title = 'Count of Test Dataset',
+  var_legend = 'Count of Homes\nin Test Dataset',
   var_num = 'A'
 )
 
 Var2_map = var_cut_map(
-  var_field = 'avg.bedrooms',
-  focus_pal = "Red-Purple",
+  focus_sf = boulder.test.fishnet,
+  var_field = 'avg.price.predict',
+  focus_pal = "Greens 2",
   pal_rev = TRUE,
-  var_breaks_nomax = c(0,1,2,3, 5),
-  var_title = 'Average Bedrooms',
-  var_legend = 'Mean Amount of Bedrooms',
+  var_breaks_nomax = c(0, 1, 50000,250000,500000,1000000),
+  var_title = 'Average Predicted Price',
+  var_legend = 'Mean Predicted Price\nfrom Training Model',
   var_num = 'B'
 )
 
-acre = 43560
-boulder.predict.fishnet$avg.lot.acre = 
-  boulder.predict.fishnet$avg.lot.sqft/acre
-boulder.predict.fishnet$avg.lot.acre %>% summary() #hist(breaks='fd')
+focus_field = 'ME'
+boulder.test.fishnet[[focus_field]] %>% hist(breaks='fd')
+boulder.test.fishnet[[focus_field]] %>% summary()
 
+min_me = max(boulder.test.fishnet[['ME']])
 Var3_map = var_cut_map(
-  var_field = 'avg.lot.acre',
-  focus_pal = "Heat",
+  focus_sf = boulder.test.fishnet,
+  var_field = 'ME',
+  focus_pal = "Green-Orange",
   pal_rev = TRUE,
-  var_breaks_nomax = c(0,.2,.5, 1, 2, 5),
-  var_title = "Average Lot Size",
-  var_legend = 'Mean Lot Size\nin Acres',
+  var_breaks_nomax = c(min_me, -1000000, -250000, -50000, 50000, 250000),
+  var_title = "Mean Errors",
+  var_legend = 'Mean of Predicted Price\nsubtracted by Price',
   var_num = 'C'
 )
 
 Var4_map = var_cut_map(
-  var_field = 'avg.build.year.adj',
-  focus_pal = "Zissou 1",
-  pal_rev = FALSE,
-  var_breaks_nomax = c(1900,1940,1980, 2000),
-  var_title = "Average Build Year (Adjusted)",
-  var_legend = 'Mean Build Year\nAdjusted by Assessor\nafter Major Remodeling',
+  focus_sf = boulder.test.fishnet,
+  var_field = 'MAE',
+  focus_pal = "Red-Yellow",
+  pal_rev = TRUE,
+  var_breaks_nomax = c(0, 1, 50000,250000,500000,1000000),
+  var_title = 'Mean of Aboslute Errors',
+  var_legend = 'MAE of Test Dataset\nby Training Model',
   var_num = 'D'
 )
 
