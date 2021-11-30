@@ -1,46 +1,3 @@
----
-title: "Assignment 2: Boulder County House Prices Algorithm"
-author: "Gianluca Nelms and Alex Mangiapane"
-date: "10/22/2021"
-output:bookdown::gitbook:
-    code_folding: hide
-    fig_caption: yes
-    toc: yes
-editor_options: 
-  markdown: 
-    wrap: sentence
-  #chunk_output_type: console
----
-
-```{r setup, include=FALSE}
-library(bookdown)
-knitr::opts_chunk$set(
-  echo=TRUE,
-  include=TRUE,
-  warning=FALSE,
-  messages=FALSE,
-  fig.width = 8,
-  fig.keep = 'all',
-  collapse=TRUE,
-  cache=TRUE, 
-  autodep=TRUE,
-  root.dir = getwd()
-  )
-
-options(tigris_class = "sf")
-```
-
-# 0. Introduction
-
-*What is the purpose of this project?*
-*Why should we care about it?*
-*What makes this a difficult exercise?*
-*What is your overall modeling strategy?*
-*Briefly summarize your results.*
-
-Boulder County - population growing, Zillow wants us adjust their pricing algorithm to reflect now growing demand for houses.  
-
-What are some aspects of Boulder County
 
 ```{r import_libraries, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -72,10 +29,23 @@ library(cowplot)
 library(gridExtra)
 library(ggpubr)
 library(broom)
+library(rgdal)
+library(spdep)
+library(grid)
 
+```
+
+``` {r import_functions, include=FALSE}
+# feet conversions
 mile = 5280
+# sq feet conversions
 sqmile = 27878000
+acre = 43560
 
+# million
+m = 1000000
+
+# strings & formatting functions
 str_replace_vector = function(string, replace, replacement='') 
   str_replace_all(string, setNames(rep(replacement, length(replace)), replace))
 
@@ -90,7 +60,16 @@ ceiling_n = function(num, by=10) ceiling(num/by) * by
 ceiling_10 = function(num) ceiling_n(num, by=10)
 ceiling_5 = function(num) ceiling_n(num, by=5)
 
-mapTheme <- function(base_size = 12) {
+# one line group_by, summarize, ungroup
+mutate_by = function(.data, group, ...) {
+  group_by(.data, !!enquo(group)) %>%
+    mutate(...) %>%
+    ungroup()
+  }
+
+# mapping
+
+mapTheme = function(base_size = 12) {
   theme(
     text = element_text( color = "black"),
     plot.title = element_text(size = 16,colour = "black"),
@@ -106,7 +85,7 @@ mapTheme <- function(base_size = 12) {
     strip.text.x = element_text(size = 14))
 }
 
-plotTheme <- function(base_size = 12) {
+plotTheme = function(base_size = 12) {
   theme(
     text = element_text( color = "black"),
     plot.title = element_text(size = 16,colour = "black"),
@@ -135,8 +114,7 @@ plotTheme <- function(base_size = 12) {
   )
 }
 
-
-
+# turn sf polys to label
 
 sf_to_labels = function(
   sf_focus, label_field
@@ -145,58 +123,70 @@ sf_to_labels = function(
     sf_focus %>%
     st_centroid(., of_largest_polygon = TRUE) %>% 
     mutate(
-      lon = map_dbl(geometry, 
-                    ~st_centroid(.x, of_largest_polygon = TRUE, quiet = TRUE,)[[1]]),
-      lat = map_dbl(geometry, 
-                    ~st_centroid(.x, of_largest_polygon = TRUE, quiet = TRUE,)[[2]])
+      lon = 
+        map_dbl(
+          geometry,
+          ~st_centroid(.x, 
+                       of_largest_polygon = TRUE,
+                       quiet = TRUE,)[[1]]),
+      lat = 
+        map_dbl(
+          geometry, 
+          ~st_centroid(.x, 
+                       of_largest_polygon = TRUE, 
+                       quiet = TRUE,)[[2]])
     )
-  
   sf.focus.labels$label = sf.focus.labels[[label_field]]
-  
-  #     ,
-  #     size = 
-  #           ifelse(grepl('city', name_long), 2,
-  #                  ifelse(grepl('town', name_long), 1.5,
-  #                         ifelse(grepl('CDP', name_long), 0,
-  #                                0)))) %>% 
-  # filter(size>0)
-
   return(sf.focus.labels %>% select(label, lon, lat))
 }
 
+# breaks to labels
 get_labels = function(
-  cut_breaks, round_digit = 0, bucket_diff=1, first_start_range=0, last_end_range=TRUE, input_end_range='', bucket_suffix='', bucket_prefix=''
+  cut_breaks, 
+  round_digit = 0, bucket_diff=1, first_start_range=0,
+  last_end_range=TRUE, input_end_range='', 
+  bucket_suffix='', bucket_prefix=''
 ){
   labels = 
     cut_breaks %>% gsub(",", " to ", .) %>% 
     str_sub(., 2, -2) %>% unique(.)
   
   list_str = function(l, remove=0){
-      format(round(as.numeric(l), digit=round_digit)-remove, big.mark=",")}
-  
+      format(round(as.numeric(l), 
+                   digit=round_digit)-remove, 
+             big.mark=",")}
   for (i in seq(from=1,to=length(labels))){
     bucket_range = labels[i] %>% str_split(., " to ")
-    
-    start_range = paste(bucket_prefix, list_str(bucket_range[[1]][1]))
-    end_range = paste(list_str(bucket_range[[1]][2], remove=bucket_diff), bucket_suffix)
-    
+    start_range = 
+      paste(
+        bucket_prefix, 
+        list_str(bucket_range[[1]][1]))
+    end_range = 
+      paste(
+        list_str(bucket_range[[1]][2], remove=bucket_diff), 
+        bucket_suffix)
     if (i == 1 & first_start_range != ''){
-      start_range = paste(bucket_prefix, list_str(first_start_range))}
+      start_range = paste(
+        bucket_prefix, 
+        list_str(first_start_range))}
     if (i == length(labels) & input_end_range!=''){
-      end_range=paste(list_str(input_end_range), bucket_suffix)
+      end_range=
+        paste(
+          list_str(input_end_range), 
+          bucket_suffix)
       last_end_range=TRUE
       }
     if (i == length(labels) & last_end_range==FALSE){end_range='+'}
-    
     bucket = paste(
         start_range, 
         'to', 
         end_range) %>% str_trim()
-    labels[i] = bucket}
-    
+    labels[i] = bucket
+    }
   return(labels)
   }
 
+# plot text 
 geom_text_sf = function(
   sf.focus.labels,
   fontface='bold', color='black', label.size = 0.25,
@@ -208,15 +198,6 @@ geom_text_sf = function(
         fontface=fontface, color=color,
         aes(x=lon,y=lat, label=label))
   return(labels)}
-
-
-mutate_by <- function(.data, group, ...) {
-
-  group_by(.data, !!enquo(group)) %>%
-    mutate(...) %>%
-    ungroup()
-
-}
 
 plot_limits = function(
   data = '',
@@ -237,5 +218,46 @@ plot_limits = function(
       ylim = c(poly.bbox['ymin'], poly.bbox['ymax']),
       crs = st_crs(data)
   ))}
+
+```
+
+
+```{r binary_functions, include=FALSE}
+
+round_str = function(str_num, digits=3) str_num %>% 
+        as.numeric() %>%
+        round(digits) %>% 
+        as.character() %>% 
+        str_replace(., "^0\\.", ".") %>%
+        str_remove(., "0+$")
+
+round_thresh = function(
+  field,
+  thresh = .001,
+  digits = 3,
+  int_check = FALSE,
+  commas = FALSE
+  ){
+  
+  if(is.null(field)){return('NULL')}
+  if(is.na(field)){return('NA')}
+  
+  thresh_str = 
+    paste('<', round_str(thresh, digits=digits), sep=' ')
+  
+  field_num = field %>% as.numeric()
+  
+  field_str = 
+    ifelse(
+      abs(field_num) < thresh,
+      thresh_str,
+      ifelse(
+        (int_check == TRUE & abs(field_num) >= 1),
+        field_num %>% round_str(digits=0),
+        field_num %>% round_str(digits=digits)
+        ))
+  
+  return(field_str)
+}
 
 ```

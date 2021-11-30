@@ -1,35 +1,27 @@
----
-title: "Assignment 2: Boulder County House Prices Algorithm"
-author: "Gianluca Nelms and Alex Mangiapane"
-date: "10/22/2021"
-output:bookdown::gitbook:
-    code_folding: hide
-    fig_caption: yes
-    toc: yes
-editor_options: 
-  markdown: 
-    wrap: sentence
-  chunk_output_type: console
----
-
-# 2. Exploratory Data Analysis 
 
 Currently, we have 24 independent variables to potentially predict house sale prices. To have a have a powerful, undiluted model, we want to narrow down our selection of predictor variables to ones that:
+
 1. Have a significant relationship with the dependent variable ("price"), *and*
+
 2. Are not significantly related to other predictor variables 
 
+We will primarily be using a mix of correlation and independence statistical tests in an attempt to measure relationships (1) between predictors & house price, and (2) between the predictors themselves. If there is too much of a relationship between predictor variables then 'multicollinearity' develops -- where it becomes difficult to distinguish which variables are contributing to the model. 
+
 To analyze these relationships, we will:
+
 A. Separate variables by data type (e.g. continuous, discrete, binary)
-B. Look at Summary Statistics
-C. View their distribution with Histograms
-D. Plot a few variables with Scatterplots
-F. Analyze Correlation Matrices & Independence Tests
-E. Map out Variables & the Boulder County Area
-G. Choose the final variables
 
-# A. Separate Data Types
+B. Look at Summary Statistics, Histograms & Scatterplots to understand their Distributions
 
-It is important to understand and test variables by their data type. Not all data types can be tested with a Pearson Correlation -- but we still need to test their independence. 
+C. Analyze Correlation Matrices & Independence Tests
+
+D. Map out Variables & the Boulder County Area
+
+E. Choose the final variables
+
+## By Data Type
+
+It is important to understand and test variables by their data type. Not every statistical correlation or independence test can be used for ever data type or distribution. But it is still important to get an understanding of each variable.
 
 ``` {r data_types}
 
@@ -43,7 +35,7 @@ var.df[
   var.df$var_name %in% vars.ivs.ordinal, 
   'data_type'] = 'ordinal'
 
-# FIND BINARY FUNCTION
+## FIND BINARY FUNCTION
 vars.ivs.binary = 
   apply(boulder.sales %>%
           select(var.ivs.all),
@@ -57,17 +49,17 @@ vars.ivs.binary = names(vars.ivs.binary[vars.ivs.binary==TRUE])
 var.df[
   var.df$var_name %in% vars.ivs.binary, 
   'data_type'] = 'binary'
-# # REPLACE TRUE/FALSE with 0/1
-# boulder.predict.0 = 
-#   boulder.predict.0 %>% 
-#     mutate(
-#       across(
-#         vars.ivs.binary, 
-#         ~ifelse(
-#           "TRUE",
-#           1,
-#           0
-#         )))
+## ## REPLACE TRUE/FALSE with 0/1
+## boulder.predict.0 = 
+##   boulder.predict.0 %>% 
+##     mutate(
+##       across(
+##         vars.ivs.binary, 
+##         ~ifelse(
+##           "TRUE",
+##           1,
+##           0
+##         )))
 
 vars.ivs.cont = var.ivs.all[!var.ivs.all %in% 
                          c(vars.ivs.ordinal, vars.ivs.binary)]
@@ -76,11 +68,20 @@ var.df[
   'data_type'] = 'continuous'
 ```
 
-# B.	Table of Summary Statistics
+## Distributions
+*Summary Statistics, Histogram, Scatterplot*
 
-The table below summarizes the variables that we are looking at to predict housing prices in Boulder county. These variables do not indicate causal relationship with house prices. Instead, we are investigating if the presence of these observations can correlate to  better predictions of what housing prices could be in the future. 
+Before correlation tests, it will be important to visualize if their distribution is skewed and what the data looks like. 
 
-``` {r table_predict0_vars,  results='asis'}
+### Table
+*Summary Statistics*
+
+The table below summarizes the variables that we are looking at to predict housing prices in Boulder county. These variables do not indicate causal relationship with house prices. Instead, we are investigating if the presence of these observations can correlate to better predictions of what housing prices could be in the future. 
+
+
+``` {r table_predict0_vars,  messages=TRUE,  results='asis', echo = FALSE}
+
+tab_num = 1
 
 select_v = function(sf, variable_names=c(var.dv, var.ivs.all)){
   return(sf %>% st_drop_geometry(.) %>%
@@ -90,18 +91,17 @@ select_iv = function(sf, variable_names=var.ivs.all){
   return(sf %>% st_drop_geometry(.) %>%
              select(variable_names))}
 
-tab_num = 1
 table_title = glue("Table {tab_num}: Summary Statistics for Boulder County")
 
 stargazer(boulder.predict.0 %>% select_v(.), 
-          type="text", digits=1, 
+          type="html", digits=1, no.space = TRUE, column.sep.width = "15pt",
           title=table_title)
 
 ```
 
-# C. Histogram
+### Histogram
 
-Before correlation tests, it will be important to visualize if their distribution is skewed and what the data looks like. We are also visualizing two statistics to calculate,
+These histograms of continuous values are important to understand how the data is distributed. To help, we are also visualizing two statistics to calculate,
 1. if the curve's distribution is skewed left or right: |Skewness| > 1
 2. if the curve has larger tails than a peak: Kurtosis > 3
 
@@ -112,17 +112,17 @@ fig_num = 1
 str_remove_vector = function(string, removing) str_remove_all(string, paste(removing, collapse = "|")) %>% str_trim()
 
 skewness = function(vector) sum((vector-mean(vector))^3)/((length(vector)-1)*sd(vector)^3)
-# Pearson’s Coefficient of Skewness
-# Skewness values and interpretation
-## Symmetric:   -0.5 to 0.5
-## Moderated:   -1 and -0.5; 0.5 and 1
-## Highly:      less than -1; 1
+## Pearson’s Coefficient of Skewness
+## Skewness values and interpretation
+###  Symmetric:   -0.5 to 0.5
+###  Moderated:   -1 and -0.5; 0.5 and 1
+###  Highly:      less than -1; 1
 
 kurtosis = function(vector) sum((vector-mean(vector))^4)/((length(vector)-1)*sd(vector)^4)
-# Kurtosis values and interpretation
-## Normal Peak (Mesokurtic): 3
-## High Peak/Low Tail (Leptokurtic): >3
-## Low Peak/High Tail (Platykurtic): <3
+## Kurtosis values and interpretation
+###  Normal Peak (Mesokurtic): 3
+###  High Peak/Low Tail (Leptokurtic): >3
+###  Low Peak/High Tail (Platykurtic): <3
 
 plotting = function(
   plot_df = boulder.predict.0, variables = vars.ivs.cont[1], remove_zero=TRUE,
@@ -171,7 +171,7 @@ annotate_figure(hist_plots,
                   glue("Figure {fig_num}: Variable Histograms"), 
                   face = "bold", size = 14))
 
-###################
+### ### ### ### ### ### #
 
 cont_skewed_stats = 
   boulder.predict.0 %>%
@@ -188,13 +188,12 @@ var.df[var.df$var_name %in% vars.ivs.cont.notskew, 'data_type'] = 'cont_notskew'
 ```
 
 
-# D.	Plots of Home Sales Prices & 4 Independent Variables
+### Scatterplot
+*Price over Lot Size, Built Year, Bathrooms, & Elementary School Score*
 
-The below are an example of three predictor variables that we are looking at to assess how well they can be used to predict boulder house sales prices. We expect to observe XXX, XXXX, and XXXX to have a positive relationship with house sales prices.   
+The below are an example of four predictor variables that we are looking at to assess how well they can be used to predict boulder house sales prices. These scatter plots also indicate whether the relationship can be predicted using a linear model, or if we need to utilize a different method for better fit. 
 
-These scatter plots also indicate whether the relationship can be predicted using a linear model, or if we need to utilize a different method for better fit. 
-
-```{r plot_predict0_vars}
+```{r plot_predict_scatplot}
 
 fig_num = 2
 
@@ -215,12 +214,6 @@ second_max = function(vector){
 ylim_num = max(boulder.predict.0$price)
 ylim = second_max(boulder.predict.0$price)
 
-# price_percentiles = ecdf(boulder.predict.0$price)
-# if (price_percentiles(max(boulder.predict.0$price))==1){
-#   toplim=max(
-#     boulder.predict.0[
-#       boulder.predict.0$price < toplim,
-#       'price'] %>% st_drop_geometry(.))}
 
 scat_vars = c('lot.sqft', 'build.year.adj','build.baths.adj', 'ele.score')
 scat_labs = c('Lot Square Footage', 'Build Year (Adjusted)', 'Bathrooms (Adjusted)', 'Elementary Scores')
@@ -260,19 +253,28 @@ for (
 
 ```
 
-# E.	Correlation & Independence Tests
 
-We will primarily be using a mix of correlation and independence statistical tests in an attempt to measure relationships (1) between predictors & house price, and (2) between the predictors themselves. If there is too much of a relationship between predictor variables then 'multicollinearity' develops -- where it becomes difficult to distinguish which variables are contributing to the model. 
+## Correlation
+*Correlation Matrices, Independence Test*
 
-Not every statistical correlation or independence test can be used for ever data type or distribution. For Continuous & Ordinal variables, we will use a correlation matrix with a coefficient that measures the extent to which two variables tend to change together. A Pearson Correlation for Continuous Variables (Figure 2). A Spearman Correlation for Ordinary and Skewed COntinous Variables (Figure 3). For Binary Variables, we will have to use two tests: (Figure 4) a T-Test measuring price & binary predictor and (Figure 5) a Chi-Square Test of Independence between binary predictors. 
+For Continuous & Ordinal variables, we will use a correlation matrix with a coefficient that measures the extent to which two variables tend to change together. 
+Specifically we will be using:
+
+1. A Pearson Correlation for Continuous Variables (Figure 3). 
+
+2. A Spearman Correlation for Ordinary and Skewed COntinous Variables (Figure 4). 
+
+3. For Binary Variables, we will have to use a T-Test measuring price & binary predictors (Figure 5). 
 
 Ordinal or Binary variables, for example, shouldn't use the typical Pearson correlation test. We will be following a [statistical test guide from UCLA](https://stats.idre.ucla.edu/other/mult-pkg/whatstat/).
 
-## 1. Continous Variables -- Pearson Correlation
+### Continous Variables
+*Pearson Correlation*
 
 For the Continuous Variables, we will use a Pearson correlation as it measures the linear relationship of the raw data. Any variables with a correlation value greater than 0.8 means they are related to each other. If those related variables are both predictors, then we only need to include one of them -- otherwise we are repeating the same information essentially. 
 
-``` {r corr_cont}
+``` {r corr_cont_pearson, fig.width=8, fig.height=8}
+
 fig_num = 3
 
 
@@ -288,7 +290,7 @@ ggcorr_full = function(focus_df, #focus_vars= vars,
   FL = .2
   RL = 1:num-0.5
   RL[1] = .1
-  # RL[num] = .1
+  ## RL[num] = .1
   
   library(reshape2)
   
@@ -323,7 +325,7 @@ ggcorr_full = function(focus_df, #focus_vars= vars,
           label = gsub("0\\.", "\\.", value)), 
       color = "black", size = 4) +
     scale_fill_gradient2(
-      # grey95
+      ## grey95
       low = "#6D9EC1", mid = "white", high = "#E46726",
       midpoint = 0, limit = c(-1,1), space = "Lab", 
                          name="Pearson\nCorrelation") +
@@ -335,8 +337,8 @@ ggcorr_full = function(focus_df, #focus_vars= vars,
               face = xfaces,
               angle=45, vjust=1, hjust=1, 
               margin=margin(-2,0,0,0)),
-          # axis.text.x = element_text(margin=margin(-2,0,0,0)),  
-          ## Order: top, right, bottom, left  
+          ## axis.text.x = element_text(margin=margin(-2,0,0,0)),  
+          ###  Order: top, right, bottom, left  
           axis.text.y = 
             element_text(
               face = yfaces,
@@ -362,17 +364,17 @@ ggcorr_full(boulder.cont,
 
 ```
 
-
-
 Figure 2 highlights which predictors have a heavier relationship with housing sale prices and each other. A few pairs of predictor variables have high correlations as they are partially the same data: specifically: building livable & above-ground square footage, bathrooms & adjusted bathrooms amounts, and the Census Tract's Population & Unit Densities
 
 For example, the home's livable square footage (build.living.sf = 0.55) and above-ground square footage (build.house.sf = 0.5) have the largest correlation statistic; however, they also have a higher inner-correlation (0.88). We will remove the latter variable (build.house.sf) as it is not as predictive of housing prices.
 
-## 2. Ordinal Variables & Continuous (Skewed Distribution) Variables -- Spearman Correlation
+### Ordinal Variables
+*& Continuous (Skewed Distribution) Variables*
+*Spearman Correlation*
 
 For binary variables and continuous variables with a skewed distribution, we shouldn't perform a pearson linear correlation as a linear . Instead, we can use Spearman's Rank Correlation in Figure 3 as it performs a nonparametric measure of statistic dependence between two variable's rankings.
 
-```{r corr_predict0_vars, fig.width=10}
+```{r corr_ordinal_spearman, fig.width=8, fig.height=8}
 
 fig_num = 4
 
@@ -394,63 +396,16 @@ ggcorrplot(
       title = glue("Figure {fig_num}: Spearman Correlation"),
       subtitle = "Ordinal Variables & Skewed Continuous Variables")
 
-
-# boulder.predict.0 %>%
-#   select(c('price', 'tract.units.density')) %>%
-#   st_drop_geometry() %>%
-#   ggplot(., aes(x=tract.units.density, y=price)) + 
-#     geom_point()+
-#     geom_smooth(method=lm)
-
 ```
 
-Figure 3 reaffirms the inner-correlation of some variables
+### Binary Variables 
+*Two Independent Samples T-Test*
 
-## 3. Binary Variables -- Paired T-Test
+To find how related Binary Variables are to house price, we use a independent samples T-Test. The T-Test measures the difference in price of each of a variable's binaries. The higher the p-value and T statistic, the larger that binary variable's impact is. 
 
-to measure difference of price in the variable's binary groups
+The T-Tests highlight that half of the Binary Variables are significant. Significant variable that will be kept are Heating & Air Condition Systems (HVAC), a finished basement (bsmt.finished), in an incorporated city (in.city), and if the census tract is above the county's median household income of $84k (above.AMI).
 
-```{r binary_functions}
-
-round_str = function(str_num, digits=3) str_num %>% 
-        as.numeric() %>%
-        round(digits) %>% 
-        as.character() %>% 
-        str_replace(., "^0\\.", ".") %>%
-        str_remove(., "0+$")
-
-round_thresh = function(
-  field,
-  thresh = .001,
-  digits = 3,
-  int_check = FALSE,
-  commas = FALSE
-  ){
-  
-  if(is.null(field)){return('NULL')}
-  if(is.na(field)){return('NA')}
-  
-  thresh_str = 
-    paste('<', round_str(thresh, digits=digits), sep=' ')
-  
-  field_num = field %>% as.numeric()
-  
-  field_str = 
-    ifelse(
-      abs(field_num) < thresh,
-      thresh_str,
-      ifelse(
-        (int_check == TRUE & abs(field_num) >= 1),
-        field_num %>% round_str(digits=0),
-        field_num %>% round_str(digits=digits)
-        ))
-  
-  return(field_str)
-}
-
-```
-
-```{r corr_predict0_vars, fig.width=10}
+```{r corr_predict0_vars, fig.width=10, results="asis"}
 
 tab_num = 2
 
@@ -463,37 +418,51 @@ for (bin_var in vars.ivs.binary){
   bin_FALSE = bin_df %>% filter(.data[[bin_var]]==0) %>% pull(var.dv)
   bin_TRUE = bin_df %>% filter(.data[[bin_var]]==1) %>% pull(var.dv)
   
-  bin_test = t.test(bin_FALSE, bin_TRUE, alternative = "two.sided")
+  bin_test = 
+    t.test(bin_FALSE, bin_TRUE, alternative = "two.sided")
   
   tstat = bin_test$statistic %>% as.numeric() %>% round(2)
   doff = bin_test$parameter %>% as.numeric() %>% round()
-  pval = bin_test$p.value %>% round_thresh(., thresh = .001,  digits = 3)
-  mean_FALSE =  paste('$ ', round(mean(bin_FALSE)/1000,0), 'k', sep='')
-  mean_TRUE = paste('$ ', round(mean(bin_TRUE)/1000,0), 'k', sep='')
+  pval = bin_test$p.value %>% 
+    round_thresh(., thresh = .0001,  digits = 5)
+  mean_FALSE =  
+    paste('$ ', round(mean(bin_FALSE)/1000,0), 'k', sep='')
+  mean_TRUE = 
+    paste('$ ', round(mean(bin_TRUE)/1000,0), 'k', sep='')
   
   ttest_df = rbind(
     ttest_df,
     c(bin_var, mean_FALSE,mean_TRUE,tstat,doff,pval)
   )}
-colnames(ttest_df) = c('iv', "FALSE", "TRUE", "Statistic", "Degrees of Freedom", 'P-Value')
+colnames(ttest_df) = 
+  c('iv', "FALSE", "TRUE", 
+    "Statistic", "Degrees of Freedom", 'P-Value')
+
+title = glue("Table {tab_num}: T-Test of Binary Variables")
 
 ttest_df %>% 
-  kable(., caption = glue("Table {tab_num}: Paired T-Test of Binary Variables")) %>%
+  kable(., caption = title, label = NA) %>%
   kable_styling() %>%
   add_header_above(
-    header=c(' '=1,'Mean Sales Price'=2,'T-Test'=3)
+    header=
+      c(' '=1,'Mean Sales Price'=2,'T-Test'=3)
   ) %>%
-  footnote(alphabet = 
-             c(
-               "Two independent samples t-test",
-               "significance level: 0.05"
+  footnote(
+    alphabet = 
+      c(
+        "Two independent samples t-test",
+        "significance level: 0.05"
                ))
 
 ```
 
-# F. Maps
+Even though 'in urbanized area' was significant, it was too inner-correlated to 'in city'; at the same time, it wasn't as correlated to home price after we preformed a range of linear tests. This is likely due to a large amount of the total homes were in urbanized areas but not in cities. Both of these variables were surprising because our team assumed that being *inside* a city or urban area would be more expensive; however, the oppostive was true. This likely has to due with expensive houses being in suburbs or in on large rural property. 
 
-## 1 Set-Up Plots
+## Maps
+
+Besides distribution plots & correlations, it is important to understand the larger spatial processes at play in variables.
+
+Boulder County has a variety of densities, urban patterns, and physical landscapes, so variables will change by location. In Section 4, there will be a heavier analysis of spatial differences of price and the predictions. 
 
 ``` {r map_functions}
 
@@ -518,18 +487,18 @@ geom_cities = function(
 
 plot_limits = function(
   data = boulder.cities$geometry,
-  # buffer between plot's limits and the geometry 
-  # (in unit of geometry column)
+  ## buffer between plot's limits and the geometry 
+  ## (in unit of geometry column)
   buffer = 0
 ){
-  # creates bounding box
+  ## creates bounding box
   poly.bbox =
     data %>% st_union() %>%
-    # buffers the geometry so the ultimate plot has margins
+    ## buffers the geometry so the ultimate plot has margins
     st_buffer(buffer) %>%
     st_bbox()
   return(
-    # returns the 'coord_sf' function which you can add to any plot
+    ## returns the 'coord_sf' function which you can add to any plot
     coord_sf(
       xlim = c(poly.bbox['xmin'], poly.bbox['xmax']),
       ylim = c(poly.bbox['ymin'], poly.bbox['ymax']),
@@ -571,8 +540,8 @@ label_breaks = function(
   highs[length(highs)] = highs[length(highs)] + high_reduce 
   
   if(above1k==TRUE){
-    highs = format_thousand_million(highs)
-    lows = format_thousand_million(lows)
+    highs[abs(highs)>=1000] = format_thousand_million(highs[abs(highs)>=1000])
+    lows[abs(lows)>=1000] = format_thousand_million(lows[abs(lows)>=1000])
   }
   
   labels = paste(lows, combiner, highs)
@@ -587,9 +556,11 @@ cutting_field =
 
 ```
 
+To visualize the point data of home sales, we will be attaching them to half-mile fishnets. 
+
 ``` {r map_fishnets, fig.width=8.5}
 
-# creating half-mile fishnets
+## creating half-mile fishnets
 
 cell_size = .5 * mile
 
@@ -637,7 +608,10 @@ boulder.data.fishnet =
 ```
 
 
-## 2 Map of Home Sales Locations
+### Sales Locations
+
+These maps show the distribution of known and unknown home sales. If we want an accurate representation of the unknown sales, it is important to acknowledge that they are primarily in the urbanized areas of East Boulder County.
+
 ``` {r map_sales}
 map_num = 1
 
@@ -653,8 +627,8 @@ boulder.data.fishnet$cut.homes =
 breaks_length = length(unique(boulder.data.fishnet$cut.homes))
 
 #hcl.pals("diverging")
-## "qualitative" "sequential" "diverging" "divergingx"
-## https://developer.r-project.org/Blog/public/2019/04/01/hcl-based-color-palettes-in-grdevices/
+###  "qualitative" "sequential" "diverging" "divergingx"
+###  https://developer.r-project.org/Blog/public/2019/04/01/hcl-based-color-palettes-in-grdevices/
 pal = hcl.colors(breaks_length-1, alpha=.95, palette = "PurpOr")
 pal = c('grey90',rev(pal))
 
@@ -727,29 +701,14 @@ predicting_plot =
 map_grid = plot_grid(predicted_plot, predicting_plot , ncol=2)
 map_grid
 
-# draw_label_theme = function(label, theme = NULL, element = "text", ...) {
-#   if (is.null(theme)) {theme = ggplot2::theme_get()}
-#   if (!element %in% names(theme)) {stop("Element must be a valid ggplot theme element name")}
-#   elements = ggplot2::calc_element(element, theme)
-#   cowplot::draw_label(
-#     label, fontfamily = elements$family, fontface = elements$face,
-#     colour = elements$color, size = elements$size, ...)}
-#
-# title_draw = ggdraw() +
-#   draw_label_theme(
-#     title, element = "plot.title",
-#     x = 0.05, hjust = 0, vjust = 1)
-# plot_grid(
-#   title_draw, map_grid,
-#   ncol = 1,
-#   # rel_heights values control vertical title margins
-#   rel_heights = c(0.1, 5)
-# )
-
 ```
 
-## 3 Map of Dependent & Independent Variables
-``` {r map_vars}
+###  Dependent & Independent Variables
+*Sales Price, Bedrooms, Lot Size, Build Year*
+
+Map 2 shows the housing sales and 3 dependent variables: Bedrooms, Lot Sizes, and Adjusted Build Year. The maps reaffirm the spatial concentrate of housing sales around major eastern county cities. The higher priced homes appear to be in the Boulder suburbs. Lower prices home locate in the inner-cities or far-west rural areas. 
+
+``` {r map_vars, fig.width = 8, fig.height = 10}
 
 map_num = 2
 
@@ -762,7 +721,7 @@ boulder.predict.0 =
   ) %>%
   select(-ends_with(".dupe_join"))
 
-boulder.predict.fishnet = 
+boulder.predict.0.fishnet = 
   merge(
     boulder.fishnet,
     boulder.predict.0 %>%
@@ -783,14 +742,15 @@ boulder.predict.fishnet =
   mutate(count.homes = replace_na(count.homes, 0))
 
 var_cut_map = function(
-  focus_sf = boulder.predict.fishnet,
+  focus_sf = boulder.predict.0.fishnet,
   var_field = 'avg.bedrooms',
   focus_pal = "YlOrRd",
   pal_rev = FALSE,
   var_breaks_nomax = c(0,1,2,3, 5),
   var_title = 'Average Bedrooms',
   var_legend = 'Average Bedrooms',
-  var_num = 'A'
+  var_num = 'A',
+  thousand=FALSE
   ){
   new_var_field = var_field %>% 
     gsub('count','cut', .) %>% gsub('avg','cut', .)
@@ -806,26 +766,48 @@ var_cut_map = function(
                        rev = pal_rev)
   #var_pal = c('grey90',var_pal)
   
-  fish_vars_map = function(focus_sf = focus_sf, cut_field = new_var_field,
-                           cut_pal=var_pal, cut_breaks = var_breaks,
-                           sub_num='A', map_title = ' ', legend_title=NULL
-                           ){
+  thousand = ifelse(thousand==TRUE,
+                     TRUE,
+                     ifelse(
+                       abs(var_breaks[3])>10000,
+                       TRUE,
+                      FALSE))
+  var_labels = 
+    label_breaks(var_breaks, 
+            high_reduce =
+              ifelse(abs(var_breaks[1])>0,1,.1), 
+            above1k = thousand)
+  
+  fish_vars_map = function(
+    focus_sf = focus_sf, 
+    cut_field = new_var_field,
+    cut_pal=var_pal, cut_breaks = var_breaks,
+    sub_num='A', map_title = ' ', 
+    legend_title=NULL,
+    cut_labels = var_labels
+    ){
     ggplot() +
-      geom_sf(data = focus_sf, aes_string(fill = new_var_field), color = NA) +
+      geom_sf(
+        data = focus_sf, 
+        aes_string(fill = new_var_field), color = NA) +
       scale_fill_manual(
         values = cut_pal, 
-        labels = label_breaks(cut_breaks, high_reduce=ifelse(abs(cut_breaks[1])>0,1,.1), 
-                              above1k = ifelse(abs(cut_breaks[3])>10000,TRUE,FALSE)),
+        labels = cut_labels,
         name=legend_title) + 
-      #geom_cities(data=boulder.cities %>% filter(incorporated=='city'), color='grey10') +
       geom_county() + 
-      geom_text_sf(sf_to_labels(boulder.cities %>% filter(incorporated=='city'), 'name')) +
+      geom_text_sf(
+        sf_to_labels(boulder.cities %>% 
+                       filter(incorporated=='city'), 'name')) +
       labs(
-        #title='', 
         subtitle = glue("Map {map_num}.{sub_num}. {map_title}"))+ 
       theme(legend.position = "bottom",
           legend.spacing.x = unit(.1, 'in')) +
-      guides(fill=guide_legend(nrow=2,byrow=TRUE)) +
+      guides(
+        fill=
+          guide_legend(
+            nrow=ifelse(length(cut_breaks)>5,3,2),
+            byrow=TRUE
+            )) +
       mapTheme()}
   
   return(fish_vars_map(focus_sf = focus_sf, cut_field = new_var_field,
@@ -839,7 +821,7 @@ Var1_map = var_cut_map(
   pal_rev = TRUE,
   var_breaks_nomax = c(50000,250000,500000,1000000, 1500000),
   var_title = 'Average Sales Price',
-  var_legend = 'Mean Home Sales\nPrice (USD)',
+  var_legend = 'Mean Sales\nPrice (USD)',
   var_num = 'A'
 )
 
@@ -849,14 +831,12 @@ Var2_map = var_cut_map(
   pal_rev = TRUE,
   var_breaks_nomax = c(0,1,2,3, 5),
   var_title = 'Average Bedrooms',
-  var_legend = 'Mean Amount of Bedrooms',
+  var_legend = 'Mean Amount\nof Bedrooms',
   var_num = 'B'
 )
 
-acre = 43560
-boulder.predict.fishnet$avg.lot.acre = 
-  boulder.predict.fishnet$avg.lot.sqft/acre
-boulder.predict.fishnet$avg.lot.acre %>% summary() #hist(breaks='fd')
+boulder.predict.0.fishnet$avg.lot.acre =
+  boulder.predict.0.fishnet$avg.lot.sqft/acre
 
 Var3_map = var_cut_map(
   var_field = 'avg.lot.acre',
@@ -874,34 +854,34 @@ Var4_map = var_cut_map(
   pal_rev = FALSE,
   var_breaks_nomax = c(1900,1940,1980, 2000),
   var_title = "Average Build Year (Adjusted)",
-  var_legend = 'Mean Build Year\nAdjusted by Assessor\nafter Major Remodeling',
-  var_num = 'D'
-)
+  var_legend = 'Mean Build Year\nAdjusted by Assessor\nafter Remodeling',
+  var_num = 'D')
 
+title = glue('Map {map_num}: Variables of Boulder Home Sales')
 grid.arrange(
   Var1_map,
   Var2_map,
   Var3_map,
   Var4_map,
-  ncol=2
+  ncol=2,
+  top = grid::textGrob(title,gp=grid::gpar(fontsize=15))
 )
+
 
 ```
 
-## 4 Map of Voting Precincts/Neighborhoods 
+The previously discussed process of urban/city/surban houses is more apparent in these maps. 
+
+###  Map of Voting Precincts/Neighborhoods 
 
 In a later spatial model test, we will be aggregating housing sales by neighborhoods. This map visualizes the voting precincts we will use like neighborhoods.
 
 ``` {r map_nhood}
 map_num = 3
 ggplot() + 
-  # geom_sf(
-  #   data = boulder.cities, 
-  #   aes(fill=incorporated), 
-  #   color='transparent') + 
   geom_sf(
     data = boulder.nhoods, 
-    aes(fill=neighborhood), 
+    aes(fill=nhood_id), 
     color='transparent',
     lwd=0.1) + 
   scale_fill_hue() + 
@@ -922,15 +902,18 @@ ggplot() +
 ```
 
 
-# G Choose Final Variables
+## Feature Selection
 
-With the results of our figures, correlation matrices, independence tests, and maps, we can narrow our 24 predictor variables to just 11. The removed variables were mostly too related to other, more potent variables. For example, the amount of rooms 'build.rooms' were too related to number of bathrooms, bedrooms, and living space square footage -- but had a relatively lower Pearson correlation to price. 
+With the results of our figures, correlation matrices, independence tests, and maps, we can narrow our 27 predictor variables to just 13. The removed variables were mostly too related to other, more potent variables. 
+
+For example, the amount of rooms 'build.rooms' were too related to number of bathrooms, bedrooms, and living space square footage -- but had a relatively lower Pearson correlation to price. 
+
 
 ``` {r final_vars}
 
 var.ivs = c(
   
-  # Continuous
+  ## Continuous
   "lot.sqft",
   "build.living.sf",
   "build.garage.sf",
@@ -938,17 +921,18 @@ var.ivs = c(
   "build.baths.adj",
   "tract.HH.income",
   
-  # ordinal
+  ## ordinal
   "ele.score",
   "build.year.adj",
   "build.quality",
   
-  # binary
+  ## binary
   "build.hvac",
   "build.bsmt.finished",
-  "in.city"
-  
+  "in.city",
+  "above.AMI"
 )
+
 ```
 
 -------------------------------

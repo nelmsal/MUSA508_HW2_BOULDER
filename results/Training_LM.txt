@@ -5,26 +5,47 @@ Table 2: Boulder Training Data Regression Output
                     ---------------------------
                                price           
 -----------------------------------------------
-nbrBedRoom                  64,960.6***        
-                             (5,171.9)         
+lot.sqft                      1.0***           
+                               (0.1)           
                                                
-mainfloorSF                  328.5***          
+build.living.sf              139.8***          
                                (8.3)           
                                                
-nbrBaths                    57,557.3***        
-                             (5,151.2)         
+build.garage.sf              -302.6***         
+                              (23.7)           
                                                
-EffectiveYear               -1,436.1***        
-                              (296.2)          
+build.bedrooms              13,617.1**         
+                             (6,036.3)         
                                                
-Constant                  2,828,618.0***       
-                            (586,669.0)        
+build.baths.adj                801.8           
+                             (8,705.7)         
+                                               
+tract.HH.income                0.02            
+                               (0.1)           
+                                               
+ele.score                   2,271.2***         
+                              (210.8)          
+                                               
+build.year.adj              -4,283.5***        
+                              (325.8)          
+                                               
+build.quality               32,100.6***        
+                              (913.2)          
+                                               
+build.hvac                 -66,673.9***        
+                            (11,008.9)         
+                                               
+build.bsmt.finished         26,114.4***        
+                            (10,048.1)         
+                                               
+Constant                  7,726,548.0***       
+                            (640,985.6)        
                                                
 -----------------------------------------------
-Observations                  11,083           
-R2                              0.2            
-Adjusted R2                     0.2            
-Residual Std. Error   481,336.4 (df = 11078)   
-F Statistic          809.4*** (df = 4; 11078)  
+Observations                   8,320           
+R2                              0.4            
+Adjusted R2                     0.4            
+Residual Std. Error    396,258.3 (df = 8308)   
+F Statistic          570.6*** (df = 11; 8308)  
 ===============================================
 Note:               *p<0.1; **p<0.05; ***p<0.01

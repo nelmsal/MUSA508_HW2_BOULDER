@@ -1002,7 +1002,8 @@ set.seed(121491)
 
 # get index for training sample
 inTrain <- caret::createDataPartition(
-  y = paste(MiamiDFKnown$Neighbourhood_name,MiamiDFKnown$BedCat,MiamiDFKnown$`Property.City`), 
+  y = paste(MiamiDFKnown$Neighbourhood_name,
+            MiamiDFKnown$BedCat,MiamiDFKnown$`Property.City`), 
   p = .60, list = FALSE)
 
 # split data into training and test, before comma is row, after comma is column
